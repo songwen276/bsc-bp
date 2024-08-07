@@ -178,11 +178,9 @@ func (bc *BlockChain) HasFastBlock(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := bc.blockCache.Get(hash); ok {
-		log.Info("从blockCache中查询出block具体信息是", block)
 		return block
 	}
 	block := rawdb.ReadBlock(bc.db, hash, number)
-	log.Info("传入blocknumber和查询到的hash从数据库查询出block具体信息是", block)
 	if block == nil {
 		return nil
 	}
