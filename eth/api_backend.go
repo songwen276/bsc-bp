@@ -118,7 +118,7 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 }
 
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	log.Info("开始执行bsc\\eth\\api_backend.go中BlockByNumber方法，BlockNumber", number)
+	log.Info("开始执行EthAPIBackend.BlockByNumber方法", "BlockNumber", number)
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
 		log.Info("查询PendingBlockNumber，执行eth.miner.PendingBlock方法")
@@ -392,6 +392,7 @@ func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) 
 }
 
 func (b *EthAPIBackend) FeeHistory(ctx context.Context, blockCount uint64, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (firstBlock *big.Int, reward [][]*big.Int, baseFee []*big.Int, gasUsedRatio []float64, err error) {
+	log.Info("执行EthAPIBackend.FeeHistory方法")
 	return b.gpo.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
 }
 

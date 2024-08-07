@@ -136,6 +136,7 @@ func LogfmtHandler(wr io.Writer) slog.Handler {
 // records which are less than or equal to the specified verbosity level.
 func LogfmtHandlerWithLevel(wr io.Writer, level slog.Level) slog.Handler {
 	return slog.NewTextHandler(wr, &slog.HandlerOptions{
+		AddSource:   true,
 		ReplaceAttr: builtinReplaceLogfmt,
 		Level:       &leveler{level},
 	})

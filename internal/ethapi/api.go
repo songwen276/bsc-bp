@@ -110,6 +110,7 @@ type feeHistoryResult struct {
 
 // FeeHistory returns the fee market history.
 func (s *EthereumAPI) FeeHistory(ctx context.Context, blockCount math.HexOrDecimal64, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (*feeHistoryResult, error) {
+	log.Info("执行EthereumAPI.FeeHistory方法")
 	oldest, reward, baseFee, gasUsed, err := s.b.FeeHistory(ctx, uint64(blockCount), lastBlock, rewardPercentiles)
 	if err != nil {
 		return nil, err
@@ -660,11 +661,13 @@ func (s *BlockChainAPI) BlockNumber() hexutil.Uint64 {
 // given block number. The rpc.LatestBlockNumber and rpc.PendingBlockNumber meta
 // block numbers are also allowed.
 func (s *BlockChainAPI) GetBalance(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (*hexutil.Big, error) {
+	log.Info("通过BlockChainAPI.b.StateAndHeaderByNumberOrHash获取当前链数据库对象")
 	state, _, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return nil, err
 	}
 	b := state.GetBalance(address).ToBig()
+	log.Info("通过当前链数据库对象获取余额", "余额", b)
 	return (*hexutil.Big)(b), state.Error()
 }
 
@@ -831,7 +834,7 @@ func (s *BlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.Hash) m
 //   - When fullTx is true all transactions in the block are returned, otherwise
 //     only the transaction hash is returned.
 func (s *BlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
-	log.Info("开始执行bsc\\internal\\ethapi\\api.go中GetBlockByNumber方法，BlockNumber参数为", number)
+	log.Info("开始执行BlockChainAPI.GetBlockByNumber方法", "，BlockNumber", number)
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)

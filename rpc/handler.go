@@ -308,7 +308,7 @@ func (h *handler) handleNonBatchCall(cp *callProc, reqCtx context.Context, msg *
 	h.addSubscriptions(cp.notifiers)
 	if answer != nil {
 		responded.Do(func() {
-			log.Info("执行成功，返回响应结果", answer)
+			log.Info("执行成功，返回响应", "结果", answer)
 			h.conn.writeJSON(cp.ctx, answer, false)
 		})
 	}
@@ -532,7 +532,7 @@ func (h *handler) handleCall(cp *callProc, msg *jsonrpcMessage) *jsonrpcMessage 
 		return msg.errorResponse(&invalidParamsError{err.Error()})
 	}
 	start := time.Now()
-	log.Info("handler开始处理需要执行的方法：", callb)
+	log.Info("handler开始处理需要执行的方法", "方法详情", callb)
 	answer := h.runMethod(cp.ctx, msg, callb, args)
 
 	// Collect the statistics for RPC calls if metrics is enabled.

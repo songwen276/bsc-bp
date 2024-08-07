@@ -201,7 +201,7 @@ func (bc *BlockChain) GetBlockByHash(hash common.Hash) *types.Block {
 // GetBlockByNumber retrieves a block from the database by number, caching it
 // (associated with its hash) if found.
 func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
-	log.Info("查询特定块，执行bsc\\core\\blockchain_reader.go中GetBlockByNumber方法")
+	log.Info("查询特定块，执行eth.blockchain.GetBlockByNumber方法")
 	hash := rawdb.ReadCanonicalHash(bc.db, number)
 	if hash == (common.Hash{}) {
 		return nil
