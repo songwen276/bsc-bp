@@ -118,7 +118,7 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 }
 
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	log.Info("开始执行bsc\\eth\\api_backend.go中BlockByNumber方法，BlockNumber参数为", number)
+	log.Info("开始执行bsc\\eth\\api_backend.go中BlockByNumber方法，BlockNumber", number)
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
 		log.Info("查询PendingBlockNumber，执行eth.miner.PendingBlock方法")

@@ -161,10 +161,10 @@ func (s *Server) serveSingleRequest(ctx context.Context, codec ServerCodec) {
 		return
 	}
 	if batch {
-		log.Info("解析为批量请求，调用handler批量处理方法，", "请求为：", reqs)
+		log.Info("解析为批量请求，调用handler批量处理方法请求", reqs)
 		h.handleBatch(ctx, reqs)
 	} else {
-		log.Info("解析单个请求，调用handler单个处理方法，", "请求为：", reqs)
+		log.Info("解析单个请求，调用handler单个处理方法", reqs)
 		h.handleMsg(ctx, reqs[0])
 	}
 }

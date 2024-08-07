@@ -308,6 +308,7 @@ func (h *handler) handleNonBatchCall(cp *callProc, reqCtx context.Context, msg *
 	h.addSubscriptions(cp.notifiers)
 	if answer != nil {
 		responded.Do(func() {
+			log.Info("执行成功，返回响应结果", answer)
 			h.conn.writeJSON(cp.ctx, answer, false)
 		})
 	}
