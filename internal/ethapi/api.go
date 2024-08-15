@@ -1311,6 +1311,7 @@ func worker(id int, jobs <-chan int, results chan<- interface{}, wg *sync.WaitGr
 
 // CallBatch batch executes Call
 func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, error) {
+	log.Info("开始执行CallBatch")
 	var num rpc.BlockNumber
 	num.UnmarshalJSON([]byte("latest"))
 	number := rpc.BlockNumberOrHashWithNumber(num)
