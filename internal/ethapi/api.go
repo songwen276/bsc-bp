@@ -1285,22 +1285,22 @@ func (s *BlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrO
 }
 
 type CallBatchArgs struct {
-	args           TransactionArgs
-	blockNrOrHash  *rpc.BlockNumberOrHash
-	overrides      *StateOverride
-	blockOverrides *BlockOverrides
+	Args           TransactionArgs
+	BlockNrOrHash  *rpc.BlockNumberOrHash
+	Overrides      *StateOverride
+	BlockOverrides *BlockOverrides
 }
 
 type Results struct {
-	since     time.Duration          `json:"since"`
-	resultMap map[string]interface{} `json:"resultMap"`
+	Since     time.Duration          `json:"since"`
+	ResultMap map[string]interface{} `json:"resultMap"`
 }
 
 func worker(id int, jobs <-chan int, results chan<- interface{}, wg *sync.WaitGroup, ctx context.Context, s *BlockChainAPI, batchArgs CallBatchArgs) {
 	defer wg.Done()
 	for job := range jobs {
 		fmt.Printf("Worker %d processing job %d\n", id, job)
-		call, err := s.Call(ctx, batchArgs.args, batchArgs.blockNrOrHash, batchArgs.overrides, batchArgs.blockOverrides)
+		call, err := s.Call(ctx, batchArgs.Args, batchArgs.BlockNrOrHash, batchArgs.Overrides, batchArgs.BlockOverrides)
 		if err != nil {
 			results <- err
 		} else {
@@ -1315,9 +1315,9 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, err
 	var num rpc.BlockNumber
 	num.UnmarshalJSON([]byte("latest"))
 	number := rpc.BlockNumberOrHashWithNumber(num)
-	batchArgs := CallBatchArgs{blockNrOrHash: &number, overrides: nil, blockOverrides: nil}
+	batchArgs := CallBatchArgs{BlockNrOrHash: &number, Overrides: nil, BlockOverrides: nil}
 	jsonData := []byte(`{"from":"0xcdecF7Ab7c6654139F65c6C1C7Ecbad653F0dfB0","to":"0x84F7f6016e5ED7819f717994225D4f60c7Af5359","data":"0x27e371f20000000000000000000000009d427e2fe3ad2cb93f83118d472a6068b4a778d60000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd8000000000000000000000000e63f406a68f04157368fd1fd2250682a4d59677c00000000000000000000000055d398326f99059ff775485246999027b31979550000000000000000000000001b6c9c20693afde803b27f8782156c0f892abc2d0000000000000000000000003e23305652d60d39512a68f1b137bfd7accf46e600000000000000000000000069b14e8d3cebfdd8196bfe530954a0c226e5008e0000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd80000000000000000000000000a5c68e49d73fe2181dfdc8aaa0ae0b56e4f2ae500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710000000000000000000000000000000000000000000000000000000000000000a"}`)
-	err1 := json.Unmarshal(jsonData, &batchArgs.args)
+	err1 := json.Unmarshal(jsonData, &batchArgs.Args)
 	if err1 != nil {
 		return "", err1
 	}
@@ -1353,10 +1353,18 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, err
 	i := 1
 	// 处理结果
 	for result := range results {
-		resultMap[strconv.Itoa(i)] = result
+		itoa := strconv.Itoa(i)
+		switch v := result.(type) {
+		case hexutil.Bytes:
+			resultMap[itoa] = v.String()
+		case error:
+			resultMap[itoa] = v.Error()
+		default:
+			resultMap[itoa] = v
+		}
 		i += 1
 	}
-	r := Results{since: since, resultMap: resultMap}
+	r := Results{Since: since, ResultMap: resultMap}
 
 	// 创建文件
 	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
