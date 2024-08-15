@@ -1311,21 +1311,17 @@ func worker(id int, jobs <-chan int, results chan<- interface{}, wg *sync.WaitGr
 
 // CallBatch batch executes Call
 func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, error) {
-	//var num rpc.BlockNumber = 0
-	//num.UnmarshalJSON([]byte("latest"))
-	//number := rpc.BlockNumberOrHashWithNumber(num)
-	//blockNrOrHash = &number
-	batchArgs := CallBatchArgs{overrides: nil, blockOverrides: nil}
+	var num rpc.BlockNumber
+	num.UnmarshalJSON([]byte("latest"))
+	number := rpc.BlockNumberOrHashWithNumber(num)
+	batchArgs := CallBatchArgs{blockNrOrHash: &number, overrides: nil, blockOverrides: nil}
 	jsonData := []byte(`{"from":"0xcdecF7Ab7c6654139F65c6C1C7Ecbad653F0dfB0","to":"0x84F7f6016e5ED7819f717994225D4f60c7Af5359","data":"0x27e371f20000000000000000000000009d427e2fe3ad2cb93f83118d472a6068b4a778d60000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd8000000000000000000000000e63f406a68f04157368fd1fd2250682a4d59677c00000000000000000000000055d398326f99059ff775485246999027b31979550000000000000000000000001b6c9c20693afde803b27f8782156c0f892abc2d0000000000000000000000003e23305652d60d39512a68f1b137bfd7accf46e600000000000000000000000069b14e8d3cebfdd8196bfe530954a0c226e5008e0000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd80000000000000000000000000a5c68e49d73fe2181dfdc8aaa0ae0b56e4f2ae500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710000000000000000000000000000000000000000000000000000000000000000a"}`)
 	err1 := json.Unmarshal(jsonData, &batchArgs.args)
 	if err1 != nil {
 		return "", err1
 	}
-	err2 := json.Unmarshal([]byte("latest"), &batchArgs.blockNrOrHash)
-	if err2 != nil {
-		return "", err2
-	}
 	log.Info("构造请求CallBatch参数", "CallBatchArgs为", batchArgs)
+
 	// 任务总数
 	jobs := make(chan int, numJobs)
 	results := make(chan interface{}, numJobs)
