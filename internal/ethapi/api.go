@@ -1356,7 +1356,13 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, err
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
 		case hexutil.Bytes:
-			resultMap[itoa] = v.String()
+			bytes := result.(hexutil.Bytes)
+			enc, err := json.Marshal(bytes)
+			if err != nil {
+				resultMap[itoa] = err.Error()
+			} else {
+				resultMap[itoa] = enc
+			}
 		case error:
 			resultMap[itoa] = v.Error()
 		default:
