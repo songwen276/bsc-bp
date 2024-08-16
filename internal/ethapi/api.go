@@ -1321,7 +1321,7 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 	// 创建一个缓冲读取器
 	scanner := bufio.NewScanner(file)
 
-	datas := make([]CallBatchArgs, 0, 1000)
+	datas := make([]CallBatchArgs, 0, 10000)
 	for scanner.Scan() {
 		line := scanner.Text()
 		batchArgs := CallBatchArgs{Overrides: nil, BlockOverrides: nil}
