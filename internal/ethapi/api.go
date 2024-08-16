@@ -1293,9 +1293,9 @@ type CallBatchArgs struct {
 }
 
 type Results struct {
-	GetDatasSince time.Duration          `json:"since"`
-	SelectSince   time.Duration          `json:"since"`
-	TotalSince    time.Duration          `json:"since"`
+	GetDatasSince time.Duration          `json:"getDatasSince"`
+	SelectSince   time.Duration          `json:"selectSince"`
+	TotalSince    time.Duration          `json:"totalSince"`
 	ResultMap     map[string]interface{} `json:"resultMap"`
 }
 
