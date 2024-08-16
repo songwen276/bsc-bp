@@ -17,6 +17,7 @@
 package ethapi
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -1296,60 +1297,87 @@ type Results struct {
 	ResultMap map[string]interface{} `json:"resultMap"`
 }
 
-func worker(id int, jobs <-chan int, results chan<- interface{}, wg *sync.WaitGroup, ctx context.Context, s *BlockChainAPI, batchArgs CallBatchArgs) {
-	defer wg.Done()
-	for job := range jobs {
-		fmt.Printf("Worker %d processing job %d\n", id, job)
-		call, err := s.Call(ctx, batchArgs.Args, batchArgs.BlockNrOrHash, batchArgs.Overrides, batchArgs.BlockOverrides)
-		if err != nil {
-			results <- err
-		} else {
-			results <- call
-		}
+func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, wg *sync.WaitGroup, ctx context.Context, s *BlockChainAPI) {
+	fmt.Printf("Worker %d processing job", taskId)
+	call, err := s.Call(ctx, job.Args, job.BlockNrOrHash, job.Overrides, job.BlockOverrides)
+	if err != nil {
+		results <- err
+	} else {
+		results <- call
 	}
+}
+
+func GetEthCallData() ([]CallBatchArgs, error) {
+	// 打开测试数据文件
+	file, err := os.Open("/blockchain/bsc/build/bin/testdata.json")
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return nil, err
+	}
+	defer file.Close()
+
+	// 创建一个缓冲读取器
+	scanner := bufio.NewScanner(file)
+
+	datas := make([]CallBatchArgs, 1000, 1000)
+	for scanner.Scan() {
+		line := scanner.Text()
+		batchArgs := CallBatchArgs{Overrides: nil, BlockOverrides: nil}
+		// 从目标字符串之后开始提取内容
+		index1 := strings.Index(line, "\"params\":[")
+		if index1 != -1 {
+			// 提取目标字符串之后的内容
+			data := line[index1+len("\"params\":[") : len(line)-12]
+			err := json.Unmarshal([]byte(data), &batchArgs.Args)
+			if err != nil {
+				return nil, err
+			}
+		}
+		index2 := strings.Index(line, "},\"")
+		if index2 != -1 {
+			// 提取目标字符串之后的内容
+			data := line[index2+len("},\"") : len(line)-4]
+			var num rpc.BlockNumber
+			num.UnmarshalJSON([]byte(data))
+			number := rpc.BlockNumberOrHashWithNumber(num)
+			batchArgs.BlockNrOrHash = &number
+		}
+		datas = append(datas, batchArgs)
+	}
+	return datas, nil
 }
 
 // CallBatch batch executes Call
 func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, error) {
+	// 读取任务测试数据
 	log.Info("开始执行CallBatch")
-	var num rpc.BlockNumber
-	num.UnmarshalJSON([]byte("latest"))
-	number := rpc.BlockNumberOrHashWithNumber(num)
-	batchArgs := CallBatchArgs{BlockNrOrHash: &number, Overrides: nil, BlockOverrides: nil}
-	jsonData := []byte(`{"from":"0xcdecF7Ab7c6654139F65c6C1C7Ecbad653F0dfB0","to":"0x84F7f6016e5ED7819f717994225D4f60c7Af5359","data":"0x27e371f20000000000000000000000009d427e2fe3ad2cb93f83118d472a6068b4a778d60000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd8000000000000000000000000e63f406a68f04157368fd1fd2250682a4d59677c00000000000000000000000055d398326f99059ff775485246999027b31979550000000000000000000000001b6c9c20693afde803b27f8782156c0f892abc2d0000000000000000000000003e23305652d60d39512a68f1b137bfd7accf46e600000000000000000000000069b14e8d3cebfdd8196bfe530954a0c226e5008e0000000000000000000000003a6d8ca21d1cf76f653a67577fa0d27453350dd80000000000000000000000000a5c68e49d73fe2181dfdc8aaa0ae0b56e4f2ae500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710000000000000000000000000000000000000000000000000000000000000000a"}`)
-	err1 := json.Unmarshal(jsonData, &batchArgs.Args)
-	if err1 != nil {
-		return "", err1
-	}
-	log.Info("构造请求CallBatch参数", "CallBatchArgs为", batchArgs)
-
-	// 任务总数
-	jobs := make(chan int, numJobs)
-	results := make(chan interface{}, numJobs)
-
-	// 创建固定数量的 worker（协程）
-	var wg sync.WaitGroup
-	for w := 1; w <= numJobs; w++ {
-		wg.Add(1)
-		go worker(w, jobs, results, &wg, ctx, s, batchArgs)
-	}
-	log.Info("创建协程完成")
-
-	// 分发任务，完成后关闭通道
 	start := time.Now()
-	for j := 1; j <= numJobs; j++ {
-		jobs <- j
+	datas, err := GetEthCallData()
+	if err != nil {
+		return "", err
 	}
-	close(jobs)
-	log.Info("分发任务完成")
 
-	// 等待所有 worker 完成
+	// 根据任务数创建结果读取通道
+	results := make(chan interface{}, len(datas))
+
+	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	var wg sync.WaitGroup
+	for i, job := range datas {
+		wg.Add(1)
+		taskId := i
+		gopool.Submit(func() {
+			defer wg.Done()
+			Worker(taskId, job, results, &wg, ctx, s)
+		})
+	}
 	wg.Wait()
 	close(results)
-
 	since := time.Since(start)
-	log.Info("所有任务执行完成，开始处理结果", "runtime", since)
-	resultMap := make(map[string]interface{}, numJobs)
+	log.Info("所有任务执行完成", "runtime", since)
+
+	// 读取任务结果通道数据进行处理
+	log.Info("读取任务结果通道数据进行处理，", "runtime", since)
+	resultMap := make(map[string]interface{}, len(datas))
 	i := 1
 	// 处理结果
 	for result := range results {
