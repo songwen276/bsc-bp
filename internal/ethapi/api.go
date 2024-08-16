@@ -1348,7 +1348,7 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 }
 
 // CallBatch batch executes Call
-func (s *BlockChainAPI) CallBatch(ctx context.Context, numJobs int) (string, error) {
+func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	// 读取任务测试数据
 	log.Info("开始执行CallBatch")
 	start := time.Now()
