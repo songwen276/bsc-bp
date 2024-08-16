@@ -1297,7 +1297,7 @@ type Results struct {
 	ResultMap map[string]interface{} `json:"resultMap"`
 }
 
-func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, wg *sync.WaitGroup, ctx context.Context, s *BlockChainAPI) {
+func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
 	fmt.Printf("Worker %d processing job", taskId)
 	call, err := s.Call(ctx, job.Args, job.BlockNrOrHash, job.Overrides, job.BlockOverrides)
 	if err != nil {
@@ -1319,7 +1319,7 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 	// 创建一个缓冲读取器
 	scanner := bufio.NewScanner(file)
 
-	datas := make([]CallBatchArgs, 1000, 1000)
+	datas := make([]CallBatchArgs, 0, 1000)
 	for scanner.Scan() {
 		line := scanner.Text()
 		batchArgs := CallBatchArgs{Overrides: nil, BlockOverrides: nil}
@@ -1327,8 +1327,8 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 		index1 := strings.Index(line, "\"params\":[")
 		if index1 != -1 {
 			// 提取目标字符串之后的内容
-			data := line[index1+len("\"params\":[") : len(line)-12]
-			err := json.Unmarshal([]byte(data), &batchArgs.Args)
+			param1 := line[index1+len("\"params\":[") : len(line)-12]
+			err := json.Unmarshal([]byte(param1), &batchArgs.Args)
 			if err != nil {
 				return nil, err
 			}
@@ -1336,9 +1336,9 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 		index2 := strings.Index(line, "},\"")
 		if index2 != -1 {
 			// 提取目标字符串之后的内容
-			data := line[index2+len("},\"") : len(line)-4]
+			param2 := line[index2+len("},\"") : len(line)-4]
 			var num rpc.BlockNumber
-			num.UnmarshalJSON([]byte(data))
+			num.UnmarshalJSON([]byte(param2))
 			number := rpc.BlockNumberOrHashWithNumber(num)
 			batchArgs.BlockNrOrHash = &number
 		}
@@ -1367,7 +1367,7 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 		taskId := i
 		gopool.Submit(func() {
 			defer wg.Done()
-			Worker(taskId, job, results, &wg, ctx, s)
+			Worker(taskId, job, results, ctx, s)
 		})
 	}
 	wg.Wait()
