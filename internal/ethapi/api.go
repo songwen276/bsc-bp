@@ -1293,8 +1293,10 @@ type CallBatchArgs struct {
 }
 
 type Results struct {
-	Since     time.Duration          `json:"since"`
-	ResultMap map[string]interface{} `json:"resultMap"`
+	GetDatasSince time.Duration          `json:"since"`
+	SelectSince   time.Duration          `json:"since"`
+	TotalSince    time.Duration          `json:"since"`
+	ResultMap     map[string]interface{} `json:"resultMap"`
 }
 
 func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
@@ -1356,6 +1358,8 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	getDatasSince := time.Since(start)
+	log.Info("获取所有测试数据花费时长", "runtime", getDatasSince)
 
 	// 根据任务数创建结果读取通道
 	results := make(chan interface{}, len(datas))
@@ -1372,11 +1376,11 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	}
 	wg.Wait()
 	close(results)
-	since := time.Since(start)
-	log.Info("所有任务执行完成", "runtime", since)
+	selectSince := time.Since(start)
+	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
 
 	// 读取任务结果通道数据进行处理
-	log.Info("读取任务结果通道数据进行处理，", "runtime", since)
+	log.Info("读取任务结果通道数据进行处理")
 	resultMap := make(map[string]interface{}, len(datas))
 	i := 1
 	// 处理结果
@@ -1398,7 +1402,9 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 		}
 		i += 1
 	}
-	r := Results{Since: since, ResultMap: resultMap}
+	totalSince := time.Since(start)
+	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
+	r := Results{GetDatasSince: getDatasSince, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
 	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
