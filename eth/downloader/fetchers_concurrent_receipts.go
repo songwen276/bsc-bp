@@ -17,6 +17,7 @@
 package downloader
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -90,6 +91,14 @@ func (q *receiptQueue) request(peer *peerConnection, req *fetchRequest, resCh ch
 func (q *receiptQueue) deliver(peer *peerConnection, packet *eth.Response) (int, error) {
 	receipts := *packet.Res.(*eth.ReceiptsResponse)
 	hashes := packet.Meta.([]common.Hash) // {receipt hashes}
+	for i, receipt := range receipts {
+		for j, rece := range receipt {
+			jsonLogs, err := json.Marshal(rece.Logs)
+			if err != nil {
+				log.Info("打印第", i, "组，第", j, "行receip.logs：", jsonLogs)
+			}
+		}
+	}
 
 	accepted, err := q.queue.DeliverReceipts(peer.id, receipts, hashes)
 	switch {
