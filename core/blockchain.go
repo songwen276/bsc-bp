@@ -2068,14 +2068,6 @@ var topicMap = make(map[string]string)
 // }
 
 func fetchTopicMap() error {
-	// 打开测试数据文件
-	file, err := os.Open("/blockchain/bsc/build/bin/topic.json")
-	if err != nil {
-		log.Error("Error opening topic file", "err", err)
-		return err
-	}
-	defer file.Close()
-
 	// 读取文件内容
 	fileContent, err := os.ReadFile("/blockchain/bsc/build/bin/topic.json")
 	if err != nil {
