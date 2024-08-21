@@ -2354,6 +2354,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				topics := reLog.Topics
 				for _, topic := range topics {
 					topicStr := hex.EncodeToString(topic[:])
+					log.Info("打印topic", "topic", topicStr)
 					topicOper := topicMap[topicStr]
 					if topicOper != "" {
 						address := hex.EncodeToString(reLog.Address[:])
