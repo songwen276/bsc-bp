@@ -2075,9 +2075,22 @@ func fetchTopicMap() error {
 	}
 
 	// 解析 JSON 文件内容到 map
-	err = json.Unmarshal(fileContent, &topicMap)
+	newTopicMap := make(map[string]string)
+	err = json.Unmarshal(fileContent, &newTopicMap)
 	if err != nil {
 		log.Error("Failed to unmarshal JSON", "err", err)
+	}
+
+	// 更新原 map
+	for k, v := range newTopicMap {
+		topicMap[k] = v
+	}
+
+	// 删除原 map 中不在新 map 中的键
+	for k := range topicMap {
+		if _, exists := newTopicMap[k]; !exists {
+			delete(topicMap, k)
+		}
 	}
 	return nil
 }
@@ -2386,6 +2399,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			for _, reLog := range receipt.Logs {
 				// marshalLog, err := json.Marshal(reLog)
 				// log.Info("收据日志打印，", "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
+
 				topics := reLog.Topics
 				for _, topic := range topics {
 					topicStr := "0x" + hex.EncodeToString(topic[:])
@@ -2393,7 +2407,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 					topicOper := topicMap[topicStr]
 					if topicOper != "" {
 						address := "0x" + hex.EncodeToString(reLog.Address[:])
-						log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "topic", topicStr, "topicOper", topicOper, "address", address)
+						log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topicStr, "topicOper", topicOper, "address", address)
 					}
 				}
 			}
