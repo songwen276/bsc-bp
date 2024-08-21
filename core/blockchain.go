@@ -18,6 +18,7 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -2333,6 +2334,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
+		index := len(chain) - 1
+		end := chain[index]
+		for i, receipt := range receipts {
+			jsonLogs, err := json.Marshal(receipt.Logs)
+			if err != nil {
+				log.Info("区块number", end.Number(), "的第", i, "组收据receipt.Logs：", jsonLogs)
+			}
+		}
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count
