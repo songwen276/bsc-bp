@@ -2399,20 +2399,20 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			for _, reLog := range receipt.Logs {
 				// marshalLog, err := json.Marshal(reLog)
 				// log.Info("收据日志打印，", "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
-				topic0Str := "0x" + hex.EncodeToString(reLog.Topics[0][:])
-				// log.Info("打印topic", "topic", topicStr)
-				topicOper := topicMap[topic0Str]
-				if topicOper != "" {
-					var address string
-					if topicOper == "Balancer" {
-						sender := "0x" + hex.EncodeToString(reLog.Topics[1][:])
-						address = sender[0:42]
-					} else {
-						address = "0x" + hex.EncodeToString(reLog.Address[:])
+				if len(reLog.Topics) > 0 {
+					topic0Str := "0x" + hex.EncodeToString(reLog.Topics[0][:])
+					topicOper := topicMap[topic0Str]
+					if topicOper != "" {
+						var address string
+						if topicOper == "Balancer" {
+							sender := "0x" + hex.EncodeToString(reLog.Topics[1][:])
+							address = sender[0:42]
+						} else {
+							address = "0x" + hex.EncodeToString(reLog.Address[:])
+						}
+						log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}
-					log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 				}
-
 			}
 		}
 
