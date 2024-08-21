@@ -2353,8 +2353,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				// log.Info("收据日志打印，", "reBlockNum", *receipt.BlockNumber, "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
 				topics := reLog.Topics
 				for _, topic := range topics {
-					topicStr := hex.EncodeToString(topic[:])
-					log.Info("打印topic", "topic", topicStr)
+					topicStr := "0x" + hex.EncodeToString(topic[:])
+					// log.Info("打印topic", "topic", topicStr)
 					topicOper := topicMap[topicStr]
 					if topicOper != "" {
 						address := hex.EncodeToString(reLog.Address[:])
