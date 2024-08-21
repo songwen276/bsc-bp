@@ -2405,7 +2405,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				if topicOper != "" {
 					var address string
 					if topicOper == "Balancer" {
-						address = "0x" + hex.EncodeToString(reLog.Topics[1][0:20])
+						sender := "0x" + hex.EncodeToString(reLog.Topics[1][:])
+						address = sender[0:42]
 					} else {
 						address = "0x" + hex.EncodeToString(reLog.Address[:])
 					}
