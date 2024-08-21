@@ -2338,7 +2338,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		end := chain[index]
 		for i, receipt := range receipts {
 			jsonLogs, err := json.Marshal(receipt.Logs)
-			if err != nil {
+			if err == nil {
 				log.Info("区块number", end.Number(), "的第", i, "组收据receipt.Logs：", jsonLogs)
 			}
 		}

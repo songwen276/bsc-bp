@@ -94,7 +94,7 @@ func (q *receiptQueue) deliver(peer *peerConnection, packet *eth.Response) (int,
 	for i, receipt := range receipts {
 		for j, rece := range receipt {
 			jsonLogs, err := json.Marshal(rece.Logs)
-			if err != nil {
+			if err == nil {
 				log.Info("打印第", i, "组，第", j, "行receip.logs：", jsonLogs)
 			}
 		}
