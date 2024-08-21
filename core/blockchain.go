@@ -2334,12 +2334,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
-		index := len(chain) - 1
-		end := chain[index]
-		for i, receipt := range receipts {
-			jsonLogs, err := json.Marshal(receipt.Logs)
-			if err == nil {
-				log.Info("区块number", end.Number(), "的第", i, "组收据receipt.Logs：", jsonLogs)
+		for _, receipt := range receipts {
+			for _, reLog := range receipt.Logs {
+				marshalLog, err := json.Marshal(reLog)
+				if err == nil {
+					log.Info("reBlockNum", *receipt.BlockNumber, "logBlockNum", reLog.BlockNumber, "组收据receipt.Logs：", marshalLog)
+				}
 			}
 		}
 
