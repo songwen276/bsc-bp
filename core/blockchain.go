@@ -18,7 +18,7 @@
 package core
 
 import (
-	"encoding/json"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -2034,6 +2034,19 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	return bc.insertChain(chain, true)
 }
 
+var topicMap = map[string]string{
+	"0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822": "UniswapV2",
+	"0x2170c741c41531aec20e7c107c24eecfdd15e69c9bb0a8dd37b1840b9e0b207b": "Balancer",
+	"0x0874b2d545cb271cdbda4e093020c452328b24af12382ed62c4d00f5c26709db": "GMX",
+	"0xb2e76ae99761dc136e598d4a629bb347eccb9532a5f8bbd72e18467c3c34cc98": "PancakeStableSwap",
+	"0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67": "UniswapV3",
+	"0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83": "PancakeV3",
+	"0xa4228e1eb11eb9b31069d9ed20e7af9a010ca1a02d4855cee54e08e188fcc32c": "Smardex",
+	"0x0e8e403c2d36126272b08c75823e988381d9dc47f2f0a9a080d95f891d95c469": "WooPPV2",
+	"0xc2c0245e056d5fb095f04cd6373bc770802ebd1e6c918eb78fdef843cdb37b0f": "DSP",
+	"0x8b3e96f2b889fa771c53c981b40daf005f63f637f1869f707052d15a3dd97140": "CurveStableSwap",
+}
+
 // insertChain is the internal implementation of InsertChain, which assumes that
 // 1) chains are contiguous, and 2) The chain mutex is held.
 //
@@ -2336,9 +2349,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
 		for _, receipt := range receipts {
 			for _, reLog := range receipt.Logs {
-				marshalLog, err := json.Marshal(reLog)
-				if err == nil {
-					log.Info("reBlockNum", *receipt.BlockNumber, "logBlockNum", reLog.BlockNumber, "组收据receipt.Logs：", marshalLog)
+				// marshalLog, err := json.Marshal(reLog)
+				// log.Info("收据日志打印，", "reBlockNum", *receipt.BlockNumber, "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
+				topics := reLog.Topics
+				for _, topic := range topics {
+					topicStr := hex.EncodeToString(topic[:])
+					topicOper := topicMap[topicStr]
+					if topicOper != "" {
+						address := hex.EncodeToString(reLog.Address[:])
+						log.Info("交易收据日志打印，", "reBlockNum", *receipt.BlockNumber, "logBlockNum", reLog.BlockNumber, "topic", topicStr, "topicOper", topicOper, "address", address)
+					}
 				}
 			}
 		}
