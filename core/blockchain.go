@@ -2399,14 +2399,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			for _, reLog := range receipt.Logs {
 				// marshalLog, err := json.Marshal(reLog)
 				// log.Info("收据日志打印，", "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
-				if len(reLog.Topics) > 0 {
-					topic0Str := "0x" + hex.EncodeToString(reLog.Topics[0][:])
+				topics := reLog.Topics
+				if len(topics) > 0 {
+					topic0Str := "0x" + hex.EncodeToString(topics[0][:])
 					topicOper := topicMap[topic0Str]
 					if topicOper != "" {
 						var address string
 						if topicOper == "Balancer" {
-							sender := "0x" + hex.EncodeToString(reLog.Topics[1][:])
-							address = sender[0:42]
+							address = "0x" + hex.EncodeToString(topics[1][0:20])
 						} else {
 							address = "0x" + hex.EncodeToString(reLog.Address[:])
 						}
