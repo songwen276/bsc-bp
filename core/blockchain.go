@@ -2395,6 +2395,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
+		pairAddrMap := make(map[string]int)
+		pairOccurTimes := 0
 		for _, receipt := range receipts {
 			for _, reLog := range receipt.Logs {
 				// marshalLog, err := json.Marshal(reLog)
@@ -2410,11 +2412,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 						} else {
 							address = "0x" + hex.EncodeToString(reLog.Address[:])
 						}
+						pairOccurTimes++
+						pairAddrMap[address]++
 						log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}
 				}
 			}
 		}
+		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count
