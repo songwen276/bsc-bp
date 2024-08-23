@@ -93,9 +93,21 @@ func fetchTriangleMap() {
 			log.Error("填充结果到结构体失败", "err", err)
 		}
 		pairControl.TriangleMap[triangle.ID] = triangle
-		pair0Set := pairControl.PairTriangleMap[triangle.Pair0]
-		pair1Set := pairControl.PairTriangleMap[triangle.Pair1]
-		pair2Set := pairControl.PairTriangleMap[triangle.Pair2]
+		pair0Set, pair0Exists := pairControl.PairTriangleMap[triangle.Pair0]
+		if !pair0Exists {
+			pair0Set = make(types.Set)
+			pairControl.PairTriangleMap[triangle.Pair0] = pair0Set
+		}
+		pair1Set, pair1Exists := pairControl.PairTriangleMap[triangle.Pair1]
+		if !pair1Exists {
+			pair1Set = make(types.Set)
+			pairControl.PairTriangleMap[triangle.Pair0] = pair1Set
+		}
+		pair2Set, pair2Exists := pairControl.PairTriangleMap[triangle.Pair2]
+		if !pair2Exists {
+			pair2Set = make(types.Set)
+			pairControl.PairTriangleMap[triangle.Pair0] = pair2Set
+		}
 		pair0Set.Add(triangle.ID)
 		pair1Set.Add(triangle.ID)
 		pair2Set.Add(triangle.ID)
