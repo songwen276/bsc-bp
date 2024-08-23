@@ -19,12 +19,11 @@ package core
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/pair"
 	"io"
 	"math/big"
-	"os"
 	"runtime"
 	"sort"
 	"sync"
@@ -2036,65 +2035,6 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	return bc.insertChain(chain, true)
 }
 
-func init() {
-	fetchTopicMap()
-	go timerGetTopic()
-}
-
-func timerGetTopic() {
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			fetchTopicMap()
-		}
-	}
-}
-
-var topicMap = make(map[string]string)
-
-// {
-// 	"0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822": "UniswapV2",
-// 	"0x2170c741c41531aec20e7c107c24eecfdd15e69c9bb0a8dd37b1840b9e0b207b": "Balancer",
-// 	"0x0874b2d545cb271cdbda4e093020c452328b24af12382ed62c4d00f5c26709db": "GMX",
-// 	"0xb2e76ae99761dc136e598d4a629bb347eccb9532a5f8bbd72e18467c3c34cc98": "PancakeStableSwap",
-// 	"0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67": "UniswapV3",
-// 	"0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83": "PancakeV3",
-// 	"0xa4228e1eb11eb9b31069d9ed20e7af9a010ca1a02d4855cee54e08e188fcc32c": "Smardex",
-// 	"0x0e8e403c2d36126272b08c75823e988381d9dc47f2f0a9a080d95f891d95c469": "WooPPV2",
-// 	"0xc2c0245e056d5fb095f04cd6373bc770802ebd1e6c918eb78fdef843cdb37b0f": "DSP",
-// 	"0x8b3e96f2b889fa771c53c981b40daf005f63f637f1869f707052d15a3dd97140": "CurveStableSwap",
-// }
-
-func fetchTopicMap() error {
-	// 读取文件内容
-	fileContent, err := os.ReadFile("/blockchain/bsc/build/bin/topic.json")
-	if err != nil {
-		log.Error("Failed to read file", "err", err)
-	}
-
-	// 解析 JSON 文件内容到 map
-	newTopicMap := make(map[string]string)
-	err = json.Unmarshal(fileContent, &newTopicMap)
-	if err != nil {
-		log.Error("Failed to unmarshal JSON", "err", err)
-	}
-
-	// 更新原 map
-	for k, v := range newTopicMap {
-		topicMap[k] = v
-	}
-
-	// 删除原 map 中不在新 map 中的键
-	for k := range topicMap {
-		if _, exists := newTopicMap[k]; !exists {
-			delete(topicMap, k)
-		}
-	}
-	return nil
-}
-
 // insertChain is the internal implementation of InsertChain, which assumes that
 // 1) chains are contiguous, and 2) The chain mutex is held.
 //
@@ -2395,16 +2335,20 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
+
+		// 根据receipts获取pair
+		pairControl := pair.GetPairControl()
+		log.Info("获取pairControl成功", "pairControl", pairControl)
 		pairAddrMap := make(map[string]int)
 		pairOccurTimes := 0
 		for _, receipt := range receipts {
 			for _, reLog := range receipt.Logs {
-				// marshalLog, err := json.Marshal(reLog)
-				// log.Info("收据日志打印，", "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
+				// marshalLog, _ := json.Marshal(reLog)
+				// log.Debug("收据日志打印，", "logBlockNum", reLog.BlockNumber, "区块对应的收据receipt.Logs", marshalLog)
 				topics := reLog.Topics
 				if len(topics) > 0 {
 					topic0Str := "0x" + hex.EncodeToString(topics[0][:])
-					topicOper := topicMap[topic0Str]
+					topicOper := pairControl.TopicMap[topic0Str]
 					if topicOper != "" {
 						var address string
 						if topicOper == "Balancer" {
@@ -2414,12 +2358,20 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 						}
 						pairOccurTimes++
 						pairAddrMap[address]++
-						log.Info("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
+						log.Debug("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}
 				}
 			}
 		}
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
+		// 根据pair获取triangle
+		for pair, _ := range pairAddrMap {
+			triangleIdSet := pairControl.PairTriangleMap[pair]
+			for triangleId, _ := range triangleIdSet {
+				triangle := pairControl.TriangleMap[triangleId]
+				log.Info("获取triangle成功", "triangle", triangle)
+			}
+		}
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

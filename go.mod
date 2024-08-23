@@ -31,6 +31,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
 	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang/protobuf v1.5.4
@@ -50,6 +51,7 @@ require (
 	github.com/influxdata/influxdb1-client v0.0.0-20220302092344-a9ab5670611c
 	github.com/jackpal/go-nat-pmp v1.0.2
 	github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/karalabe/usb v0.0.3-0.20230711191512-61db3e06439c
 	github.com/kylelemons/godebug v1.1.0
@@ -92,6 +94,7 @@ require (
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1 // indirect
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/BurntSushi/toml v1.3.2 // indirect
