@@ -5,27 +5,34 @@ import (
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
-	"github.com/ethereum/go-ethereum/pair/types"
+	"github.com/ethereum/go-ethereum/pair/pairtypes"
+	"github.com/jmoiron/sqlx"
 	"os"
 	"time"
 )
 
-var pairControl types.PairControl
+var pairCache pairtypes.PairCache
 
 func init() {
-	pairControl = types.PairControl{}
-	pairControl.GetTopicing.Store(false)
-	pairControl.GetTriangleing.Store(false)
-	pairControl.TriangleMap = make(map[int64]types.Triangle)
-	pairControl.PairTriangleMap = make(map[string]types.Set)
+	pairCache = pairtypes.PairCache{}
+	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
+	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
 	fetchTriangleMap()
-	gopool.Submit(timerGetTriangle)
+	err1 := gopool.Submit(timerGetTriangle)
+	if err1 != nil {
+		log.Error("开启定时加载Triangle任务失败", "err", err1)
+		return
+	}
 	fetchTopicMap()
-	gopool.Submit(timerGetTopic)
+	err2 := gopool.Submit(timerGetTopic)
+	if err2 != nil {
+		log.Error("开启定时加载Topic任务失败", "err", err2)
+		return
+	}
 }
 
-func GetPairControl() types.PairControl {
-	return pairControl
+func GetPairControl() pairtypes.PairCache {
+	return pairCache
 }
 
 func timerGetTriangle() {
@@ -51,10 +58,6 @@ func timerGetTopic() {
 }
 
 func fetchTopicMap() {
-	if pairControl.GetTopicing.Load() {
-		log.Error("TopicMap正在加载中，本次直接跳过")
-		return
-	}
 	// 读取文件内容
 	fileContent, err := os.ReadFile("/blockchain/bsc/build/bin/topic.json")
 	if err != nil {
@@ -67,14 +70,10 @@ func fetchTopicMap() {
 	if err != nil {
 		log.Error("Failed to unmarshal JSON", "err", err)
 	}
-	pairControl.TopicMap = newTopicMap
+	pairCache.TopicMap = newTopicMap
 }
 
 func fetchTriangleMap() {
-	if pairControl.GetTriangleing.Load() {
-		log.Error("TriangleMap正在加载中，本次直接跳过")
-		return
-	}
 	// 初始化数据库连接
 	mysqlDB := mysqldb.GetMysqlDB()
 
@@ -83,30 +82,35 @@ func fetchTriangleMap() {
 	if err != nil {
 		log.Error("查询失败", "err", err)
 	}
-	defer rows.Close()
+	defer func(rows *sqlx.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Error("流式查询关闭rows失败", "err", err)
+		}
+	}(rows)
 
 	// 遍历查询结果
 	for rows.Next() {
-		var triangle types.Triangle
+		var triangle pairtypes.Triangle
 		err := rows.StructScan(&triangle)
 		if err != nil {
 			log.Error("填充结果到结构体失败", "err", err)
 		}
-		pairControl.TriangleMap[triangle.ID] = triangle
-		pair0Set, pair0Exists := pairControl.PairTriangleMap[triangle.Pair0]
+		pairCache.TriangleMap[triangle.ID] = triangle
+		pair0Set, pair0Exists := pairCache.PairTriangleMap[triangle.Pair0]
 		if !pair0Exists {
-			pair0Set = make(types.Set)
-			pairControl.PairTriangleMap[triangle.Pair0] = pair0Set
+			pair0Set = make(pairtypes.Set)
+			pairCache.PairTriangleMap[triangle.Pair0] = pair0Set
 		}
-		pair1Set, pair1Exists := pairControl.PairTriangleMap[triangle.Pair1]
+		pair1Set, pair1Exists := pairCache.PairTriangleMap[triangle.Pair1]
 		if !pair1Exists {
-			pair1Set = make(types.Set)
-			pairControl.PairTriangleMap[triangle.Pair0] = pair1Set
+			pair1Set = make(pairtypes.Set)
+			pairCache.PairTriangleMap[triangle.Pair1] = pair1Set
 		}
-		pair2Set, pair2Exists := pairControl.PairTriangleMap[triangle.Pair2]
+		pair2Set, pair2Exists := pairCache.PairTriangleMap[triangle.Pair2]
 		if !pair2Exists {
-			pair2Set = make(types.Set)
-			pairControl.PairTriangleMap[triangle.Pair0] = pair2Set
+			pair2Set = make(pairtypes.Set)
+			pairCache.PairTriangleMap[triangle.Pair2] = pair2Set
 		}
 		pair0Set.Add(triangle.ID)
 		pair1Set.Add(triangle.ID)

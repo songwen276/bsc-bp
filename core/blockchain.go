@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
+	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"io"
 	"math/big"
 	"runtime"
@@ -2337,8 +2338,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, status == CanonStatTy)
 
 		// 根据receipts获取pair
-		pairControl := pair.GetPairControl()
-		log.Info("获取pairControl成功", "pairControl", pairControl)
+		pairCache := pair.GetPairControl()
+		log.Info("获取pairCache成功", "pairCache", pairCache)
 		pairAddrMap := make(map[string]int)
 		pairOccurTimes := 0
 		for _, receipt := range receipts {
@@ -2348,7 +2349,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				topics := reLog.Topics
 				if len(topics) > 0 {
 					topic0Str := "0x" + hex.EncodeToString(topics[0][:])
-					topicOper := pairControl.TopicMap[topic0Str]
+					topicOper := pairCache.TopicMap[topic0Str]
 					if topicOper != "" {
 						var address string
 						if topicOper == "Balancer" {
@@ -2365,13 +2366,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 		// 根据pair获取triangle
+		var triangles []pairtypes.Triangle
 		for pair, _ := range pairAddrMap {
-			triangleIdSet := pairControl.PairTriangleMap[pair]
+			triangleIdSet := pairCache.PairTriangleMap[pair]
 			for triangleId, _ := range triangleIdSet {
-				triangle := pairControl.TriangleMap[triangleId]
-				log.Info("获取triangle成功", "triangle", triangle)
+				triangle := pairCache.TriangleMap[triangleId]
+				triangles = append(triangles, triangle)
 			}
 		}
+		log.Info("获取triangles成功", "triangles", triangles)
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

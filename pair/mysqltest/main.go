@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
-	"github.com/ethereum/go-ethereum/pair/types"
+	"github.com/ethereum/go-ethereum/pair/pairtypes"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 
 	// 遍历查询结果
 	for rows.Next() {
-		var triangle types.Triangle
+		var triangle pairtypes.Triangle
 		err := rows.StructScan(&triangle)
 		if err != nil {
 			log.Error("填充结果到结构体失败", "err", err)

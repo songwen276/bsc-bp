@@ -1,6 +1,4 @@
-package types
-
-import "sync/atomic"
+package pairtypes
 
 type Triangle struct {
 	ID      int64  `db:"id"`
@@ -15,9 +13,7 @@ type Triangle struct {
 	Pair2   string `db:"pair2"`
 }
 
-type PairControl struct {
-	GetTopicing     atomic.Bool
-	GetTriangleing  atomic.Bool
+type PairCache struct {
 	TriangleMap     map[int64]Triangle
 	TopicMap        map[string]string
 	PairTriangleMap map[string]Set
