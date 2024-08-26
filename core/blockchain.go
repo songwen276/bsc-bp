@@ -2339,7 +2339,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		// 根据receipts获取pair
 		pairCache := pair.GetPairControl()
-		log.Info("获取pairCache成功", "pairCache", pairCache)
+		log.Debug("获取pairCache成功", "pairCache", pairCache)
 		pairAddrMap := make(map[string]int)
 		pairOccurTimes := 0
 		for _, receipt := range receipts {
