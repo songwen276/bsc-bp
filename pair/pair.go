@@ -20,7 +20,7 @@ func init() {
 	pairCache = pairtypes.PairCache{}
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
-	// fetchTriangleMap()
+	fetchTriangleMap()
 	fmt.Printf("初次加载triange到内存中耗时：%v\\n", time.Since(triangleStart))
 
 	// 初始化topic到内存
@@ -29,11 +29,11 @@ func init() {
 	fmt.Printf("初次加载topic到内存中耗时：%v\\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
-	// err1 := gopool.Submit(timerGetTriangle)
-	// if err1 != nil {
-	// 	fmt.Printf("开启定时加载Triangle任务失败，err=%v\\n", err1)
-	// 	return
-	// }
+	err1 := gopool.Submit(timerGetTriangle)
+	if err1 != nil {
+		fmt.Printf("开启定时加载Triangle任务失败，err=%v\\n", err1)
+		return
+	}
 	err2 := gopool.Submit(timerGetTopic)
 	if err2 != nil {
 		fmt.Printf("开启定时加载Topic任务失败，err=%v\\n", err2)
@@ -46,7 +46,7 @@ func GetPairControl() pairtypes.PairCache {
 }
 
 func timerGetTriangle() {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for {
 		select {
