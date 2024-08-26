@@ -12,11 +12,12 @@ import (
 
 // DB 是全局数据库连接池
 var (
-	mysqldb         *sqlx.DB
-	once            sync.Once
-	user            = "root"
-	password        = "FG0mKQ35JRvaXxacGgBtXT1uwerwoVwi"
-	hostname        = "135.181.218.173:3306"
+	mysqldb  *sqlx.DB
+	once     sync.Once
+	user     = "root"
+	password = "FG0mKQ35JRvaXxacGgBtXT1uwerwoVwi"
+	// hostname        = "135.181.218.173:3306"
+	hostname        = "192.168.100.102:3306"
 	dbname          = "arbitrage-bsc"
 	maxOpenConns    = 10
 	maxIdleConns    = 5

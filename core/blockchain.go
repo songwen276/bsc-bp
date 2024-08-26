@@ -2375,6 +2375,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			}
 		}
 		log.Info("获取triangles成功", "triangles", triangles)
+		// if p, ok := bc.engine.(*parlia.Parlia); ok {
+		// 	p.EthAPI.BlockChainCallBatch(triangles)
+		// }
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

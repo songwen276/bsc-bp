@@ -1423,6 +1423,72 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	return "ok", nil
 }
 
+// CallBatch batch executes Call
+func (s *BlockChainAPI) BlockChainCallBatch(datas []CallBatchArgs) (string, error) {
+	// 根据任务数创建结果读取通道
+	start := time.Now()
+	ctx := context.Background()
+	results := make(chan interface{}, len(datas))
+
+	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	var wg sync.WaitGroup
+	for i, job := range datas {
+		wg.Add(1)
+		taskId := i
+		gopool.Submit(func() {
+			defer wg.Done()
+			Worker(taskId, job, results, ctx, s)
+		})
+	}
+	wg.Wait()
+	close(results)
+	selectSince := time.Since(start)
+	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+
+	// 读取任务结果通道数据进行处理
+	log.Info("读取任务结果通道数据进行处理")
+	resultMap := make(map[string]interface{}, len(datas))
+	i := 1
+	// 处理结果
+	for result := range results {
+		itoa := strconv.Itoa(i)
+		switch v := result.(type) {
+		case hexutil.Bytes:
+			bytes := result.(hexutil.Bytes)
+			enc, err := json.Marshal(bytes)
+			if err != nil {
+				resultMap[itoa] = err.Error()
+			} else {
+				resultMap[itoa] = enc
+			}
+		case error:
+			resultMap[itoa] = v.Error()
+		default:
+			resultMap[itoa] = v
+		}
+		i += 1
+	}
+	totalSince := time.Since(start)
+	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
+	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
+
+	// 创建文件
+	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// 将 map 编码为 JSON
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // 设置缩进格式
+	if err := encoder.Encode(r); err != nil {
+		return "", err
+	}
+	log.Info("结果输出到文件完成，结束")
+	return "ok", nil
+}
+
 // DoEstimateGas returns the lowest possible gas limit that allows the transaction to run
 // successfully at block `blockNrOrHash`. It returns error if the transaction would revert, or if
 // there are unexpected failures. The gas limit is capped by both `args.Gas` (if non-nil &

@@ -14,16 +14,25 @@ import (
 var pairCache pairtypes.PairCache
 
 func init() {
+	// 初始化triange到内存
+	triangleStart := time.Now()
 	pairCache = pairtypes.PairCache{}
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
 	fetchTriangleMap()
+	log.Info("初次加载triange到内存中耗时", "time", time.Since(triangleStart))
+
+	// 初始化topic到内存
+	topicStart := time.Now()
+	fetchTopicMap()
+	log.Info("初次加载topic到内存中耗时", "time", time.Since(topicStart))
+
+	// 开启协程周期更新内存中triange与topic
 	err1 := gopool.Submit(timerGetTriangle)
 	if err1 != nil {
 		log.Error("开启定时加载Triangle任务失败", "err", err1)
 		return
 	}
-	fetchTopicMap()
 	err2 := gopool.Submit(timerGetTopic)
 	if err2 != nil {
 		log.Error("开启定时加载Topic任务失败", "err", err2)
@@ -59,6 +68,7 @@ func timerGetTopic() {
 
 func fetchTopicMap() {
 	// 读取文件内容
+	start := time.Now()
 	fileContent, err := os.ReadFile("/blockchain/bsc/build/bin/topic.json")
 	if err != nil {
 		log.Error("Failed to read file", "err", err)
@@ -71,14 +81,16 @@ func fetchTopicMap() {
 		log.Error("Failed to unmarshal JSON", "err", err)
 	}
 	pairCache.TopicMap = newTopicMap
+	log.Info("刷新内存中topic耗时", "time", time.Since(start))
 }
 
 func fetchTriangleMap() {
 	// 初始化数据库连接
+	start := time.Now()
 	mysqlDB := mysqldb.GetMysqlDB()
 
 	// 使用流式查询，逐行处理数据
-	rows, err := mysqlDB.Queryx("SELECT id, token0, router0, pair0, token1, router1, pair1, token2, router2, pair2 FROM arbitrage_triangle LIMIT 0,10")
+	rows, err := mysqlDB.Queryx("SELECT id, token0, router0, pair0, token1, router1, pair1, token2, router2, pair2 FROM arbitrage_triangle")
 	if err != nil {
 		log.Error("查询失败", "err", err)
 	}
@@ -121,4 +133,5 @@ func fetchTriangleMap() {
 	if err := rows.Err(); err != nil {
 		log.Error("查询失败", "err", err)
 	}
+	log.Info("刷新内存中triange耗时", "time", time.Since(start))
 }
