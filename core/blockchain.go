@@ -2340,7 +2340,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		// 根据receipts获取pair
 		pairCache := pair.GetPairControl()
 		log.Debug("获取pairCache成功", "pairCache", pairCache)
-		pairAddrMap := make(map[string]int)
+		pairAddrMap := make(map[string]pairtypes.Set)
 		pairOccurTimes := 0
 		for _, receipt := range receipts {
 			for _, reLog := range receipt.Logs {
@@ -2358,7 +2358,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 							address = "0x" + hex.EncodeToString(reLog.Address[:])
 						}
 						pairOccurTimes++
-						pairAddrMap[address]++
+						triangleIdSet := pairCache.PairTriangleMap[address]
+						pairAddrMap[address] = triangleIdSet
 						log.Debug("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}
 				}
@@ -2367,8 +2368,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 		// 根据pair获取triangle
 		var triangles []pairtypes.Triangle
-		for pair, _ := range pairAddrMap {
-			triangleIdSet := pairCache.PairTriangleMap[pair]
+		for _, triangleIdSet := range pairAddrMap {
 			for triangleId, _ := range triangleIdSet {
 				triangle := pairCache.TriangleMap[triangleId]
 				triangles = append(triangles, triangle)

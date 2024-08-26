@@ -20,11 +20,12 @@ type PairCache struct {
 }
 
 // Set 实现一个set
-type Set map[int64]struct{}
+type Set map[int64]int
 
 // Add 添加元素
 func (s Set) Add(value int64) {
-	s[value] = struct{}{}
+	s[value] = 0
+	s[value] = len(s)
 }
 
 // Remove 删除元素

@@ -18,14 +18,12 @@ var pairCache pairtypes.PairCache
 
 func init() {
 	// 初始化triange到内存
-	printMemUsed()
 	triangleStart := time.Now()
 	pairCache = pairtypes.PairCache{}
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
 	fetchTriangleMap()
 	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap))
-	printMemUsed()
 
 	// 初始化topic到内存
 	topicStart := time.Now()
