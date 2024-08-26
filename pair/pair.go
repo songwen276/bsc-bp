@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"github.com/jmoiron/sqlx"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,27 +18,29 @@ var pairCache pairtypes.PairCache
 
 func init() {
 	// 初始化triange到内存
+	printMemUsed()
 	triangleStart := time.Now()
 	pairCache = pairtypes.PairCache{}
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
 	fetchTriangleMap()
-	fmt.Printf("初次加载triange到内存中耗时：%v\\n", time.Since(triangleStart))
+	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap))
+	printMemUsed()
 
 	// 初始化topic到内存
 	topicStart := time.Now()
 	fetchTopicMap()
-	fmt.Printf("初次加载topic到内存中耗时：%v\\n", time.Since(topicStart))
+	fmt.Printf("初次加载topic到内存中耗时：%v\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
 	err1 := gopool.Submit(timerGetTriangle)
 	if err1 != nil {
-		fmt.Printf("开启定时加载Triangle任务失败，err=%v\\n", err1)
+		fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err1)
 		return
 	}
 	err2 := gopool.Submit(timerGetTopic)
 	if err2 != nil {
-		fmt.Printf("开启定时加载Topic任务失败，err=%v\\n", err2)
+		fmt.Printf("开启定时加载Topic任务失败，err=%v\n", err2)
 		return
 	}
 }
@@ -87,6 +91,7 @@ func fetchTopicMap() {
 
 func fetchTriangleMap() {
 	// 初始化数据库连接
+	printMemUsed()
 	start := time.Now()
 	mysqlDB := mysqldb.GetMysqlDB()
 
@@ -135,4 +140,39 @@ func fetchTriangleMap() {
 		log.Error("查询失败", "err", err)
 	}
 	log.Info("刷新内存中triange耗时", "time", time.Since(start), "triange总数", len(pairCache.TriangleMap))
+	printMemUsed()
+}
+
+func printMemUsed() {
+	// 读取 /proc/meminfo 文件
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		fmt.Printf("Error reading /proc/meminfo：%v\n", err)
+		return
+	}
+
+	// 解析内容
+	lines := strings.Split(string(data), "\n")
+	memInfo := make(map[string]int64)
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		key := strings.Trim(fields[0], ":")
+		value, err := strconv.ParseInt(fields[1], 10, 64)
+		if err == nil {
+			memInfo[key] = value
+		}
+	}
+
+	// 计算总缓存内存
+	totalCache := memInfo["Buffers"] + memInfo["Cached"]
+
+	// 输出总内存、空闲内存、可用内存和总缓存内存
+	fmt.Printf("Total RAM: %d MB\n", memInfo["MemTotal"]/1024)
+	fmt.Printf("Free RAM: %d MB\n", memInfo["MemFree"]/1024)
+	fmt.Printf("Available RAM: %d MB\n", memInfo["MemAvailable"]/1024)
+	fmt.Printf("Total Cached RAM (Buffers + Cached): %d MB\n", totalCache/1024)
 }
