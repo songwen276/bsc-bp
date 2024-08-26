@@ -2,6 +2,7 @@ package pair
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
@@ -19,23 +20,23 @@ func init() {
 	pairCache = pairtypes.PairCache{}
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
-	fetchTriangleMap()
-	log.Info("初次加载triange到内存中耗时", "time", time.Since(triangleStart))
+	// fetchTriangleMap()
+	fmt.Printf("初次加载triange到内存中耗时：%v\\n", time.Since(triangleStart))
 
 	// 初始化topic到内存
 	topicStart := time.Now()
 	fetchTopicMap()
-	log.Info("初次加载topic到内存中耗时", "time", time.Since(topicStart))
+	fmt.Printf("初次加载topic到内存中耗时：%v\\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
-	err1 := gopool.Submit(timerGetTriangle)
-	if err1 != nil {
-		log.Error("开启定时加载Triangle任务失败", "err", err1)
-		return
-	}
+	// err1 := gopool.Submit(timerGetTriangle)
+	// if err1 != nil {
+	// 	fmt.Printf("开启定时加载Triangle任务失败，err=%v\\n", err1)
+	// 	return
+	// }
 	err2 := gopool.Submit(timerGetTopic)
 	if err2 != nil {
-		log.Error("开启定时加载Topic任务失败", "err", err2)
+		fmt.Printf("开启定时加载Topic任务失败，err=%v\\n", err2)
 		return
 	}
 }
@@ -133,5 +134,5 @@ func fetchTriangleMap() {
 	if err := rows.Err(); err != nil {
 		log.Error("查询失败", "err", err)
 	}
-	log.Info("刷新内存中triange耗时", "time", time.Since(start))
+	log.Info("刷新内存中triange耗时", "time", time.Since(start), "triange总数", len(pairCache.TriangleMap))
 }
