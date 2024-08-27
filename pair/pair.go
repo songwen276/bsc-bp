@@ -23,7 +23,7 @@ func init() {
 	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
 	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
 	fetchTriangleMap()
-	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap))
+	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条\n，加载pair共%v条", time.Since(triangleStart), len(pairCache.TriangleMap), len(pairCache.PairTriangleMap))
 
 	// 初始化topic到内存
 	topicStart := time.Now()
@@ -137,7 +137,7 @@ func fetchTriangleMap() {
 	if err := rows.Err(); err != nil {
 		log.Error("查询失败", "err", err)
 	}
-	log.Info("刷新内存中triange耗时", "time", time.Since(start), "triange总数", len(pairCache.TriangleMap))
+	log.Info("刷新内存中triange耗时", "time", time.Since(start), "triange总数", len(pairCache.TriangleMap), "pair总数", len(pairCache.PairTriangleMap))
 	printMemUsed()
 }
 
