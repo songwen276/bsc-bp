@@ -25,12 +25,11 @@ type PairCache struct {
 }
 
 // Set 实现一个set
-type Set map[int64]int
+type Set map[int64]struct{}
 
 // Add 添加元素
 func (s Set) Add(value int64) {
-	s[value] = 0
-	s[value] = len(s)
+	s[value] = struct{}{}
 }
 
 // Remove 删除元素
@@ -47,8 +46,8 @@ func (s Set) Contains(value int64) bool {
 // String 方法
 func (s Set) String() string {
 	var pairs []string
-	for k, v := range s {
-		pairs = append(pairs, fmt.Sprintf("%d:%d", k, v))
+	for k, _ := range s {
+		pairs = append(pairs, fmt.Sprintf("%d", k))
 	}
-	return fmt.Sprintf("{%s}", strings.Join(pairs, ", "))
+	return fmt.Sprintf("[%s] (length: %d)", strings.Join(pairs, ", "), len(pairs))
 }
