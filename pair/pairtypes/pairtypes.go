@@ -1,5 +1,10 @@
 package pairtypes
 
+import (
+	"fmt"
+	"strings"
+)
+
 type Triangle struct {
 	ID      int64  `db:"id"`
 	Token0  string `db:"token0"`
@@ -37,4 +42,13 @@ func (s Set) Remove(value int64) {
 func (s Set) Contains(value int64) bool {
 	_, exists := s[value]
 	return exists
+}
+
+// String 方法
+func (s Set) String() string {
+	var pairs []string
+	for k, v := range s {
+		pairs = append(pairs, fmt.Sprintf("%d:%d", k, v))
+	}
+	return fmt.Sprintf("{%s}", strings.Join(pairs, ", "))
 }
