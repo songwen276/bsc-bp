@@ -21,6 +21,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/parlia"
+	triangulararbitrage "github.com/ethereum/go-ethereum/contracts"
 	"github.com/ethereum/go-ethereum/pair"
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"io"
@@ -2367,16 +2369,36 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 		// 根据pair获取triangle
 		var triangles []pairtypes.Triangle
+		var trianglesData [][]byte
 		for _, triangleIdSet := range pairAddrMap {
 			for triangleId, _ := range triangleIdSet {
 				triangle := pairCache.TriangleMap[triangleId]
+				triangular := triangulararbitrage.ITriangularArbitrageTriangular{
+					Token0:  common.HexToAddress(triangle.Token0),
+					Router0: common.HexToAddress(triangle.Router0),
+					Pair0:   common.HexToAddress(triangle.Pair0),
+					Token1:  common.HexToAddress(triangle.Token1),
+					Router1: common.HexToAddress(triangle.Router1),
+					Pair1:   common.HexToAddress(triangle.Pair1),
+					Token2:  common.HexToAddress(triangle.Token2),
+					Router2: common.HexToAddress(triangle.Router2),
+					Pair2:   common.HexToAddress(triangle.Pair2),
+				}
+				triangulararbitrage := triangulararbitrage.GetTriangulararbitrage()
+				data, err := triangulararbitrage.TriangulararbitrageCaller.GetData(triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
+				if err != nil {
+					log.Error("编码triangles数据失败", "error", err)
+				}
 				triangles = append(triangles, triangle)
+				trianglesData = append(trianglesData, data)
 			}
 		}
 		log.Info("获取triangles成功", "triangles", triangles)
-		// if p, ok := bc.engine.(*parlia.Parlia); ok {
-		// 	p.EthAPI.BlockChainCallBatch(triangles)
-		// }
+		if len(trianglesData) > 0 {
+			if p, ok := bc.engine.(*parlia.Parlia); ok {
+				p.EthAPI.BlockChainCallBatch(trianglesData)
+			}
+		}
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

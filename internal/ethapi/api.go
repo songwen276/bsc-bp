@@ -1424,20 +1424,28 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 }
 
 // CallBatch batch executes Call
-func (s *BlockChainAPI) BlockChainCallBatch(datas []CallBatchArgs) (string, error) {
+func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	// 根据任务数创建结果读取通道
 	start := time.Now()
 	ctx := context.Background()
 	results := make(chan interface{}, len(datas))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	var num rpc.BlockNumber
+	num.UnmarshalJSON([]byte("latest"))
+	number := rpc.BlockNumberOrHashWithNumber(num)
 	var wg sync.WaitGroup
-	for i, job := range datas {
+	for i, data := range datas {
+		batchArgs := CallBatchArgs{BlockNrOrHash: &number, Overrides: nil, BlockOverrides: nil}
+		err := json.Unmarshal(data, &batchArgs.Args)
+		if err != nil {
+			return "", err
+		}
 		wg.Add(1)
 		taskId := i
 		gopool.Submit(func() {
 			defer wg.Done()
-			Worker(taskId, job, results, ctx, s)
+			Worker(taskId, batchArgs, results, ctx, s)
 		})
 	}
 	wg.Wait()

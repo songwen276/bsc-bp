@@ -5,6 +5,8 @@ package triangulararbitrage
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 	"strings"
 
@@ -110,6 +112,24 @@ type TriangulararbitrageTransactorRaw struct {
 	Contract *TriangulararbitrageTransactor // Generic write-only contract binding to access the raw methods on
 }
 
+var triangulararbitrage *Triangulararbitrage
+
+func GetTriangulararbitrage() *Triangulararbitrage {
+	if triangulararbitrage == nil {
+		conn, err := ethclient.Dial("/blockchain/bsc/build/bin/node/geth.ipc")
+		if err != nil {
+			log.Info("Failed to connect to the local Ethereum client，error", err)
+			return nil
+		}
+		triangulararbitrage, err = NewTriangulararbitrage(common.HexToAddress("0x123456"), conn)
+		if err != nil {
+			log.Info("Failed to create triangulararbitrage instance，error", err)
+			return nil
+		}
+	}
+	return triangulararbitrage
+}
+
 // NewTriangulararbitrage creates a new instance of Triangulararbitrage, bound to a specific deployed contract.
 func NewTriangulararbitrage(address common.Address, backend bind.ContractBackend) (*Triangulararbitrage, error) {
 	contract, err := bindTriangulararbitrage(address, backend, backend, backend)
@@ -208,6 +228,14 @@ func (_Triangulararbitrage *TriangulararbitrageCaller) ArbitrageQuery(opts *bind
 
 	return out0, err
 
+}
+
+func (_Triangulararbitrage *TriangulararbitrageCaller) GetData(t ITriangularArbitrageTriangular, startRatio *big.Int, endRatio *big.Int, pieces *big.Int) ([]byte, error) {
+	data, err := _Triangulararbitrage.contract.GetData("arbitrageQuery", t, startRatio, endRatio, pieces)
+	if err != nil {
+		return nil, err
+	}
+	return data, err
 }
 
 // ArbitrageQuery is a free data retrieval call binding the contract method 0x27e371f2.
