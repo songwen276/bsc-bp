@@ -21,8 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
-	triangulararbitrage "github.com/ethereum/go-ethereum/contracts"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/pair"
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"io"
@@ -312,6 +311,7 @@ type BlockChain struct {
 	procInterrupt atomic.Bool   // interrupt signaler for block processing
 
 	engine     consensus.Engine
+	ethAPI     *ethapi.BlockChainAPI
 	prefetcher Prefetcher
 	validator  Validator // Block and state validator interface
 	processor  Processor // Block transaction processor interface
@@ -585,6 +585,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		bc.txIndexer = newTxIndexer(*txLookupLimit, bc)
 	}
 	return bc, nil
+}
+
+func (bc *BlockChain) SetEthApi(ethAPI *ethapi.BlockChainAPI) {
+	bc.ethAPI = ethAPI
 }
 
 // GetVMConfig returns the block chain VM config.
@@ -2373,7 +2377,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		for _, triangleIdSet := range pairAddrMap {
 			for triangleId, _ := range triangleIdSet {
 				triangle := pairCache.TriangleMap[triangleId]
-				triangular := triangulararbitrage.ITriangularArbitrageTriangular{
+				triangular := pairtypes.ITriangularArbitrageTriangular{
 					Token0:  common.HexToAddress(triangle.Token0),
 					Router0: common.HexToAddress(triangle.Router0),
 					Pair0:   common.HexToAddress(triangle.Pair0),
@@ -2384,10 +2388,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 					Router2: common.HexToAddress(triangle.Router2),
 					Pair2:   common.HexToAddress(triangle.Pair2),
 				}
-				triangulararbitrage := triangulararbitrage.GetTriangulararbitrage()
-				data, err := triangulararbitrage.TriangulararbitrageCaller.GetData(triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
+
+				data, err := pair.Encoder("arbitrageQuery", triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
 				if err != nil {
-					log.Error("编码triangles数据失败", "error", err)
+					log.Error("编码triangles数据失败", "err", err)
 				}
 				triangles = append(triangles, triangle)
 				trianglesData = append(trianglesData, data)
@@ -2395,9 +2399,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		log.Info("获取triangles成功", "triangles", triangles)
 		if len(trianglesData) > 0 {
-			if p, ok := bc.engine.(*parlia.Parlia); ok {
-				p.EthAPI.BlockChainCallBatch(trianglesData)
-			}
+			bc.ethAPI.BlockChainCallBatch(trianglesData)
 		}
 
 		if !setHead {

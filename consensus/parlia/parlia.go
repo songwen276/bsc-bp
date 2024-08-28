@@ -232,7 +232,7 @@ type Parlia struct {
 
 	lock sync.RWMutex // Protects the signer fields
 
-	EthAPI                     *ethapi.BlockChainAPI
+	ethAPI                     *ethapi.BlockChainAPI
 	VotePool                   consensus.VotePool
 	validatorSetABIBeforeLuban abi.ABI
 	validatorSetABI            abi.ABI
@@ -293,7 +293,7 @@ func New(
 		config:                     parliaConfig,
 		genesisHash:                genesisHash,
 		db:                         db,
-		EthAPI:                     ethAPI,
+		ethAPI:                     ethAPI,
 		recentSnaps:                recentSnaps,
 		recentHeaders:              recentHeaders,
 		signatures:                 signatures,
@@ -706,7 +706,7 @@ func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 
 		// If an on-disk checkpoint snapshot can be found, use that
 		if number%checkpointInterval == 0 {
-			if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.EthAPI); err == nil {
+			if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.ethAPI); err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
 				snap = s
 				break
@@ -727,7 +727,7 @@ func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 				}
 
 				// new snapshot
-				snap = newSnapshot(p.config, p.signatures, number, hash, validators, voteAddrs, p.EthAPI)
+				snap = newSnapshot(p.config, p.signatures, number, hash, validators, voteAddrs, p.ethAPI)
 				if err := snap.store(p.db); err != nil {
 					return nil, err
 				}
@@ -1645,7 +1645,7 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash, blockNum *big.Int) 
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := p.EthAPI.Call(ctx, ethapi.TransactionArgs{
+	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   &toAddress,
 		Data: &msgData,

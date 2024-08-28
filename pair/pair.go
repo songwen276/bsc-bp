@@ -3,6 +3,8 @@ package pair
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
@@ -15,6 +17,13 @@ import (
 )
 
 var pairCache pairtypes.PairCache
+
+// TriangulararbitrageMetaData contains all meta data concerning the Triangulararbitrage contract.
+var triangulararbitrageMetaData = &bind.MetaData{
+	ABI: "[{\"inputs\":[],\"name\":\"arb_wcnwzblucpyf\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"startRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"pieces\",\"type\":\"uint256\"}],\"name\":\"arbitrageQuery\",\"outputs\":[{\"internalType\":\"int256[]\",\"name\":\"roi\",\"type\":\"int256[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"name\":\"isTriangularValid\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+}
+
+var ABI *abi.ABI
 
 func init() {
 	// 初始化triange到内存
@@ -31,16 +40,25 @@ func init() {
 	fmt.Printf("初次加载topic到内存中耗时：%v\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
-	err1 := gopool.Submit(timerGetTriangle)
-	if err1 != nil {
-		fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err1)
+	err := gopool.Submit(timerGetTriangle)
+	if err != nil {
+		fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err)
 		return
 	}
-	err2 := gopool.Submit(timerGetTopic)
-	if err2 != nil {
-		fmt.Printf("开启定时加载Topic任务失败，err=%v\n", err2)
+	err = gopool.Submit(timerGetTopic)
+	if err != nil {
+		fmt.Printf("开启定时加载Topic任务失败，err=%v\n", err)
 		return
 	}
+
+	// 加载三角合约abi
+	triangleAbi, err := triangulararbitrageMetaData.GetAbi()
+	if err != nil {
+		fmt.Printf("加载三角合约abi失败，err=%v\n", err)
+		return
+	}
+	ABI = triangleAbi
+
 }
 
 func GetPairControl() pairtypes.PairCache {
@@ -173,4 +191,8 @@ func printMemUsed() {
 	fmt.Printf("Free RAM: %d MB\n", memInfo["MemFree"]/1024)
 	fmt.Printf("Available RAM: %d MB\n", memInfo["MemAvailable"]/1024)
 	fmt.Printf("Total Cached RAM (Buffers + Cached): %d MB\n", totalCache/1024)
+}
+
+func Encoder(name string, args ...interface{}) ([]byte, error) {
+	return ABI.Pack(name, args)
 }

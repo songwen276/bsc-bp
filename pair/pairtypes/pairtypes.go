@@ -2,6 +2,7 @@ package pairtypes
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"strings"
 )
 
@@ -22,6 +23,18 @@ type PairCache struct {
 	TriangleMap     map[int64]Triangle
 	TopicMap        map[string]string
 	PairTriangleMap map[string]Set
+}
+
+type ITriangularArbitrageTriangular struct {
+	Token0  common.Address
+	Router0 common.Address
+	Pair0   common.Address
+	Token1  common.Address
+	Router1 common.Address
+	Pair1   common.Address
+	Token2  common.Address
+	Router2 common.Address
+	Pair2   common.Address
 }
 
 // Set 实现一个set
