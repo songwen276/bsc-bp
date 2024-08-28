@@ -1437,6 +1437,7 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 // CallBatch batch executes Call
 func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	// 根据任务数创建结果读取通道
+	log.Info("开始执行BlockChainCallBatch")
 	start := time.Now()
 	ctx := context.Background()
 	results := make(chan interface{}, len(datas))
