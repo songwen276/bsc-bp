@@ -2363,6 +2363,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 							address = "0x" + hex.EncodeToString(reLog.Address[:])
 						}
 						pairOccurTimes++
+						address = common.HexToAddress(address).Hex()
 						pairAddrMap[address] = pairCache.PairTriangleMap[address]
 						log.Debug("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}

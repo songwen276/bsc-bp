@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
@@ -28,8 +29,8 @@ func init() {
 	// 初始化triange到内存
 	triangleStart := time.Now()
 	pairCache = pairtypes.PairCache{
-		TriangleMap:     make(map[int64]pairtypes.Triangle),
-		PairTriangleMap: make(map[string]pairtypes.Set),
+		TriangleMap:     make(map[int64]pairtypes.Triangle, 2000000),
+		PairTriangleMap: make(map[string]pairtypes.Set, 2000000),
 	}
 	fetchTriangleMap()
 	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条，加载pair共%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap), len(pairCache.PairTriangleMap))
@@ -40,12 +41,12 @@ func init() {
 	fmt.Printf("初次加载topic到内存中耗时：%v\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
-	err := gopool.Submit(timerGetTriangle)
-	if err != nil {
-		fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err)
-		return
-	}
-	err = gopool.Submit(timerGetTopic)
+	// err := gopool.Submit(timerGetTriangle)
+	// if err != nil {
+	// 	fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err)
+	// 	return
+	// }
+	err := gopool.Submit(timerGetTopic)
 	if err != nil {
 		fmt.Printf("开启定时加载Topic任务失败，err=%v\n", err)
 		return
@@ -132,6 +133,9 @@ func fetchTriangleMap() {
 		if err != nil {
 			log.Error("填充结果到结构体失败", "err", err)
 		}
+		triangle.Pair0 = common.HexToAddress(triangle.Pair0).Hex()
+		triangle.Pair1 = common.HexToAddress(triangle.Pair1).Hex()
+		triangle.Pair2 = common.HexToAddress(triangle.Pair2).Hex()
 		pairCache.TriangleMap[triangle.ID] = triangle
 		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair0)
 		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair1)
@@ -146,11 +150,13 @@ func fetchTriangleMap() {
 	printMemUsed()
 }
 
+var i = 0
+
 func addTriangleIdToPairTriangleMap(id int64, pair string) {
 	if pairSet, exists := pairCache.PairTriangleMap[pair]; exists {
 		pairSet.Add(id)
 	} else {
-		pairSet = make(pairtypes.Set)
+		pairSet := make(pairtypes.Set)
 		pairSet.Add(id)
 		pairCache.PairTriangleMap[pair] = pairSet
 	}
