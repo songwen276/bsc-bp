@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/pair"
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"io"
@@ -311,7 +310,7 @@ type BlockChain struct {
 	procInterrupt atomic.Bool   // interrupt signaler for block processing
 
 	engine     consensus.Engine
-	ethAPI     *ethapi.BlockChainAPI
+	ethAPI     pairtypes.PairAPI
 	prefetcher Prefetcher
 	validator  Validator // Block and state validator interface
 	processor  Processor // Block transaction processor interface
@@ -587,7 +586,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	return bc, nil
 }
 
-func (bc *BlockChain) SetEthApi(ethAPI *ethapi.BlockChainAPI) {
+func (bc *BlockChain) SetEthApi(ethAPI pairtypes.PairAPI) {
 	bc.ethAPI = ethAPI
 }
 

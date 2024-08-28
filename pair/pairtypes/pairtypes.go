@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+type PairAPI interface {
+	BlockChainCallBatch(datas [][]byte) (string, error)
+}
+
 type Triangle struct {
 	ID      int64  `db:"id"`
 	Token0  string `db:"token0"`
