@@ -27,9 +27,10 @@ var LatestBlockNumber rpc.BlockNumberOrHash
 func init() {
 	// 初始化triange到内存
 	triangleStart := time.Now()
-	pairCache = pairtypes.PairCache{}
-	pairCache.TriangleMap = make(map[int64]pairtypes.Triangle)
-	pairCache.PairTriangleMap = make(map[string]pairtypes.Set)
+	pairCache = pairtypes.PairCache{
+		TriangleMap:     make(map[int64]pairtypes.Triangle),
+		PairTriangleMap: make(map[string]pairtypes.Set),
+	}
 	fetchTriangleMap()
 	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条，加载pair共%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap), len(pairCache.PairTriangleMap))
 
@@ -126,30 +127,15 @@ func fetchTriangleMap() {
 
 	// 遍历查询结果
 	for rows.Next() {
-		var triangle pairtypes.Triangle
+		triangle := pairtypes.Triangle{}
 		err := rows.StructScan(&triangle)
 		if err != nil {
 			log.Error("填充结果到结构体失败", "err", err)
 		}
 		pairCache.TriangleMap[triangle.ID] = triangle
-		pair0Set, pair0Exists := pairCache.PairTriangleMap[triangle.Pair0]
-		if !pair0Exists {
-			pair0Set = make(pairtypes.Set)
-			pairCache.PairTriangleMap[triangle.Pair0] = pair0Set
-		}
-		pair1Set, pair1Exists := pairCache.PairTriangleMap[triangle.Pair1]
-		if !pair1Exists {
-			pair1Set = make(pairtypes.Set)
-			pairCache.PairTriangleMap[triangle.Pair1] = pair1Set
-		}
-		pair2Set, pair2Exists := pairCache.PairTriangleMap[triangle.Pair2]
-		if !pair2Exists {
-			pair2Set = make(pairtypes.Set)
-			pairCache.PairTriangleMap[triangle.Pair2] = pair2Set
-		}
-		pair0Set.Add(triangle.ID)
-		pair1Set.Add(triangle.ID)
-		pair2Set.Add(triangle.ID)
+		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair0)
+		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair1)
+		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair2)
 	}
 
 	// 检查是否有遍历中的错误
@@ -158,6 +144,16 @@ func fetchTriangleMap() {
 	}
 	log.Info("刷新内存中triange耗时", "time", time.Since(start), "triange总数", len(pairCache.TriangleMap), "pair总数", len(pairCache.PairTriangleMap))
 	printMemUsed()
+}
+
+func addTriangleIdToPairTriangleMap(id int64, pair string) {
+	if pairSet, exists := pairCache.PairTriangleMap[pair]; exists {
+		pairSet.Add(id)
+	} else {
+		pairSet = make(pairtypes.Set)
+		pairSet.Add(id)
+		pairCache.PairTriangleMap[pair] = pairSet
+	}
 }
 
 func printMemUsed() {
