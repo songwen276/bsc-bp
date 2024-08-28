@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/pair/mysqldb"
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/jmoiron/sqlx"
 	"os"
 	"strconv"
@@ -20,6 +21,8 @@ var pairCache pairtypes.PairCache
 var abiStr = "[{\"inputs\":[],\"name\":\"arb_wcnwzblucpyf\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"startRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"pieces\",\"type\":\"uint256\"}],\"name\":\"arbitrageQuery\",\"outputs\":[{\"internalType\":\"int256[]\",\"name\":\"roi\",\"type\":\"int256[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"name\":\"isTriangularValid\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 
 var ABI *abi.ABI
+
+var LatestBlockNumber rpc.BlockNumberOrHash
 
 func init() {
 	// 初始化triange到内存
@@ -54,6 +57,9 @@ func init() {
 	} else {
 		ABI = &parsed
 	}
+
+	// 构造最新区块
+	LatestBlockNumber = rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 }
 
 func GetPairControl() pairtypes.PairCache {
@@ -189,5 +195,5 @@ func printMemUsed() {
 }
 
 func Encoder(name string, args ...interface{}) ([]byte, error) {
-	return ABI.Pack(name, args)
+	return ABI.Pack(name, args...)
 }

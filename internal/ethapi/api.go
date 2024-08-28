@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/pair"
 	"math/big"
 	"os"
 	"strconv"
@@ -1309,6 +1310,16 @@ func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx conte
 	}
 }
 
+func BlockWorker(taskId int, args TransactionArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
+	fmt.Printf("Worker %d processing job", taskId)
+	call, err := s.Call(ctx, args, &pair.LatestBlockNumber, nil, nil)
+	if err != nil {
+		results <- err
+	} else {
+		results <- call
+	}
+}
+
 func GetEthCallData() ([]CallBatchArgs, error) {
 	// 打开测试数据文件
 	file, err := os.Open("/blockchain/bsc/build/bin/testdata.json")
@@ -1431,13 +1442,10 @@ func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	results := make(chan interface{}, len(datas))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
-	var num rpc.BlockNumber
-	num.UnmarshalJSON([]byte("latest"))
-	number := rpc.BlockNumberOrHashWithNumber(num)
 	var wg sync.WaitGroup
 	for i, data := range datas {
-		batchArgs := CallBatchArgs{BlockNrOrHash: &number, Overrides: nil, BlockOverrides: nil}
-		err := json.Unmarshal(data, &batchArgs.Args)
+		var args TransactionArgs
+		err := json.Unmarshal(data, &args)
 		if err != nil {
 			return "", err
 		}
@@ -1445,7 +1453,7 @@ func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 		taskId := i
 		gopool.Submit(func() {
 			defer wg.Done()
-			Worker(taskId, batchArgs, results, ctx, s)
+			BlockWorker(taskId, args, results, ctx, s)
 		})
 	}
 	wg.Wait()

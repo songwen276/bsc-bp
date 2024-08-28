@@ -23,12 +23,6 @@ type Triangle struct {
 	Pair2   string `db:"pair2"`
 }
 
-type PairCache struct {
-	TriangleMap     map[int64]Triangle
-	TopicMap        map[string]string
-	PairTriangleMap map[string]Set
-}
-
 type ITriangularArbitrageTriangular struct {
 	Token0  common.Address
 	Router0 common.Address
@@ -39,6 +33,12 @@ type ITriangularArbitrageTriangular struct {
 	Token2  common.Address
 	Router2 common.Address
 	Pair2   common.Address
+}
+
+type PairCache struct {
+	TriangleMap     map[int64]Triangle
+	TopicMap        map[string]string
+	PairTriangleMap map[string]Set
 }
 
 // Set 实现一个set
