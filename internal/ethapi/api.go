@@ -1435,7 +1435,7 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 }
 
 // CallBatch batch executes Call
-func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
+func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) error {
 	// 根据任务数创建结果读取通道
 	log.Info("开始执行BlockChainCallBatch")
 	start := time.Now()
@@ -1489,7 +1489,7 @@ func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	// 创建文件
 	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer file.Close()
 
@@ -1497,10 +1497,10 @@ func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ") // 设置缩进格式
 	if err := encoder.Encode(r); err != nil {
-		return "", err
+		return err
 	}
 	log.Info("结果输出到文件完成，结束")
-	return "ok", nil
+	return nil
 }
 
 // DoEstimateGas returns the lowest possible gas limit that allows the transaction to run

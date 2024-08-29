@@ -10,7 +10,7 @@ import (
 )
 
 type PairAPI interface {
-	BlockChainCallBatch(datas [][]byte) (string, error)
+	BlockChainCallBatch(datas [][]byte) error
 }
 
 type Triangle struct {

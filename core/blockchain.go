@@ -2397,9 +2397,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				trianglesData = append(trianglesData, data)
 			}
 		}
-		log.Debug("获取triangles成功", "triangles", triangles)
 		if len(trianglesData) > 0 {
-			bc.ethAPI.BlockChainCallBatch(trianglesData)
+			log.Debug("获取triangles成功", "triangles", triangles)
+			err := bc.ethAPI.BlockChainCallBatch(trianglesData)
+			if err != nil {
+				log.Debug("triangles成功执行eth_call失败", "err", err)
+			}
 		}
 
 		if !setHead {
