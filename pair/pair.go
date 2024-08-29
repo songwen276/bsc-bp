@@ -62,6 +62,7 @@ func init() {
 	} else {
 		ABI = &parsed
 	}
+	fmt.Printf("初次加载三角合约abi到内存中成功：%v\n", *ABI)
 
 }
 
