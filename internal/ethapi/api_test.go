@@ -594,6 +594,9 @@ func (b testBackend) GetEVM(ctx context.Context, msg *core.Message, state *state
 	}
 	return vm.NewEVM(context, txContext, state, b.chain.Config(), *vmConfig)
 }
+func (b testBackend) GetPairEVM(ctx context.Context, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockContext *vm.BlockContext) *vm.EVM {
+	return nil
+}
 func (b testBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
 	panic("implement me")
 }
@@ -664,7 +667,7 @@ func (b *testBackend) SendBid(ctx context.Context, bid *types.BidArgs) (common.H
 }
 func (b *testBackend) MinerInTurn() bool { return false }
 func (b *testBackend) BestBidGasFee(parentHash common.Hash) *big.Int {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -758,7 +761,7 @@ func TestEstimateGas(t *testing.T) {
 		//            require(block.basefee > 0);
 		//        }
 		//    }
-		//}
+		// }
 		{
 			blockNumber: rpc.LatestBlockNumber,
 			call: TransactionArgs{
@@ -1328,7 +1331,7 @@ func argsFromTransaction(tx *types.Transaction, from common.Address) Transaction
 		Input:                (*hexutil.Bytes)(&input),
 		ChainID:              (*hexutil.Big)(tx.ChainId()),
 		// TODO: impl accessList conversion
-		//AccessList: tx.AccessList(),
+		// AccessList: tx.AccessList(),
 		BlobFeeCap: (*hexutil.Big)(tx.BlobGasFeeCap()),
 		BlobHashes: tx.BlobHashes(),
 	}

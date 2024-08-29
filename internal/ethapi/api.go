@@ -1253,6 +1253,129 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
+func pairDoCall(args TransactionArgs, state *state.StateDB, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, evm *vm.EVM, gp *core.GasPool) (*core.ExecutionResult, error) {
+	// parse the message.
+	msg, err := args.ToMessage(globalGasCap, blockCtx.BaseFee)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute the message.
+	result, err := core.ApplyMessage(evm, msg, gp)
+	if err := state.Error(); err != nil {
+		return nil, err
+	}
+
+	// If the timer caused an abort, return an appropriate error message
+	if evm.Cancelled() {
+		return nil, fmt.Errorf("execution aborted (timeout = %v)", timeout)
+	}
+	if err != nil {
+		return result, fmt.Errorf("err: %w (supplied gas %d)", err, msg.GasLimit)
+	}
+	return result, nil
+}
+
+// PairCallBatch executes Call
+func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
+	log.Info("开始执行BlockChainCallBatch")
+	start := time.Now()
+
+	// 设置上下文，用于控制方法执行超时时间
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	backend := s.b
+	timeout := backend.RPCEVMTimeout()
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	defer cancel()
+
+	// 构造当前区块公共数据
+	results := make(chan interface{}, len(datas))
+	state, header, err := backend.StateAndHeaderByNumberOrHash(ctx, pair.LatestBlockNumber)
+	globalGasCap := backend.RPCGasCap()
+	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, backend), nil)
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	evm := backend.GetPairEVM(ctx, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
+
+	// 启动协程用于监听到上下文发送超时消息后释放evm
+	gopool.Submit(func() {
+		<-ctx.Done()
+		evm.Cancel()
+	})
+
+	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	var wg sync.WaitGroup
+	for _, data := range datas {
+		bytes := hexutil.Bytes(data)
+		args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+		wg.Add(1)
+		gopool.Submit(func() {
+			defer wg.Done()
+			pairWorker(results, args, state, timeout, globalGasCap, blockCtx, evm, gp)
+		})
+	}
+	wg.Wait()
+	close(results)
+	selectSince := time.Since(start)
+	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+
+	// 读取任务结果通道数据进行处理
+	log.Info("读取任务结果通道数据进行处理")
+	resultMap := make(map[string]interface{}, len(datas))
+	i := 1
+	// 处理结果
+	for result := range results {
+		itoa := strconv.Itoa(i)
+		switch v := result.(type) {
+		case hexutil.Bytes:
+			bytes := result.(hexutil.Bytes)
+			enc, err := json.Marshal(bytes)
+			if err != nil {
+				resultMap[itoa] = err.Error()
+			} else {
+				resultMap[itoa] = enc
+			}
+		case error:
+			resultMap[itoa] = v.Error()
+		default:
+			resultMap[itoa] = v
+		}
+		i += 1
+	}
+	totalSince := time.Since(start)
+	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
+	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
+
+	// 创建文件
+	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 map 编码为 JSON
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // 设置缩进格式
+	if err := encoder.Encode(r); err != nil {
+		return err
+	}
+	log.Info("结果输出到文件完成，结束")
+	return nil
+}
+
+func pairWorker(results chan<- interface{}, args TransactionArgs, state *state.StateDB, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, evm *vm.EVM, gp *core.GasPool) {
+	call, err := pairDoCall(args, state, timeout, globalGasCap, blockCtx, evm, gp)
+	if err != nil {
+		results <- err
+	} else {
+		results <- call
+	}
+}
+
 func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
@@ -1300,19 +1423,9 @@ type Results struct {
 	ResultMap     map[string]interface{} `json:"resultMap"`
 }
 
-func Worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
+func worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
 	fmt.Printf("Worker %d processing job", taskId)
 	call, err := s.Call(ctx, job.Args, job.BlockNrOrHash, job.Overrides, job.BlockOverrides)
-	if err != nil {
-		results <- err
-	} else {
-		results <- call
-	}
-}
-
-func BlockWorker(taskId int, args TransactionArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
-	fmt.Printf("Worker %d processing job", taskId)
-	call, err := s.Call(ctx, args, &pair.LatestBlockNumber, nil, nil)
 	if err != nil {
 		results <- err
 	} else {
@@ -1382,7 +1495,7 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 		taskId := i
 		gopool.Submit(func() {
 			defer wg.Done()
-			Worker(taskId, job, results, ctx, s)
+			worker(taskId, job, results, ctx, s)
 		})
 	}
 	wg.Wait()
@@ -1432,75 +1545,6 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	}
 	log.Info("结果输出到文件完成，结束")
 	return "ok", nil
-}
-
-// CallBatch batch executes Call
-func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) error {
-	// 根据任务数创建结果读取通道
-	log.Info("开始执行BlockChainCallBatch")
-	start := time.Now()
-	ctx := context.Background()
-	results := make(chan interface{}, len(datas))
-
-	// 提交任务到协程池，所有协程完成后关闭结果读取通道
-	var wg sync.WaitGroup
-	for i, data := range datas {
-		bytes := hexutil.Bytes(data)
-		args := TransactionArgs{From: &pair.From, To: &pair.To, Input: &bytes}
-		wg.Add(1)
-		taskId := i
-		gopool.Submit(func() {
-			defer wg.Done()
-			BlockWorker(taskId, args, results, ctx, s)
-		})
-	}
-	wg.Wait()
-	close(results)
-	selectSince := time.Since(start)
-	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
-
-	// 读取任务结果通道数据进行处理
-	log.Info("读取任务结果通道数据进行处理")
-	resultMap := make(map[string]interface{}, len(datas))
-	i := 1
-	// 处理结果
-	for result := range results {
-		itoa := strconv.Itoa(i)
-		switch v := result.(type) {
-		case hexutil.Bytes:
-			bytes := result.(hexutil.Bytes)
-			enc, err := json.Marshal(bytes)
-			if err != nil {
-				resultMap[itoa] = err.Error()
-			} else {
-				resultMap[itoa] = enc
-			}
-		case error:
-			resultMap[itoa] = v.Error()
-		default:
-			resultMap[itoa] = v
-		}
-		i += 1
-	}
-	totalSince := time.Since(start)
-	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
-	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
-
-	// 创建文件
-	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 map 编码为 JSON
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ") // 设置缩进格式
-	if err := encoder.Encode(r); err != nil {
-		return err
-	}
-	log.Info("结果输出到文件完成，结束")
-	return nil
 }
 
 // DoEstimateGas returns the lowest possible gas limit that allows the transaction to run
