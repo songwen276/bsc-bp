@@ -17,21 +17,24 @@ import (
 	"time"
 )
 
-var pairCache pairtypes.PairCache
+var pairCache = pairtypes.PairCache{
+	TriangleMap:     make(map[int64]pairtypes.Triangle, 2000000),
+	PairTriangleMap: make(map[string]pairtypes.Set, 2000000),
+}
 
 var abiStr = "[{\"inputs\":[],\"name\":\"arb_wcnwzblucpyf\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"startRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endRatio\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"pieces\",\"type\":\"uint256\"}],\"name\":\"arbitrageQuery\",\"outputs\":[{\"internalType\":\"int256[]\",\"name\":\"roi\",\"type\":\"int256[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"token0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair0\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair1\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"token2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"router2\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"pair2\",\"type\":\"address\"}],\"internalType\":\"structITriangularArbitrage.Triangular\",\"name\":\"t\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"name\":\"isTriangularValid\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 
 var ABI *abi.ABI
 
-var LatestBlockNumber rpc.BlockNumberOrHash
+var LatestBlockNumber = rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+
+var From = common.HexToAddress("0xcdecF7Ab7c6654139F65c6C1C7Ecbad653F0dfB0")
+
+var To = common.HexToAddress("0x84F7f6016e5ED7819f717994225D4f60c7Af5359")
 
 func init() {
 	// 初始化triange到内存
 	triangleStart := time.Now()
-	pairCache = pairtypes.PairCache{
-		TriangleMap:     make(map[int64]pairtypes.Triangle, 2000000),
-		PairTriangleMap: make(map[string]pairtypes.Set, 2000000),
-	}
 	fetchTriangleMap()
 	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条，加载pair共%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap), len(pairCache.PairTriangleMap))
 
@@ -41,12 +44,12 @@ func init() {
 	fmt.Printf("初次加载topic到内存中耗时：%v\n", time.Since(topicStart))
 
 	// 开启协程周期更新内存中triange与topic
-	// err := gopool.Submit(timerGetTriangle)
-	// if err != nil {
-	// 	fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err)
-	// 	return
-	// }
-	err := gopool.Submit(timerGetTopic)
+	err := gopool.Submit(timerGetTriangle)
+	if err != nil {
+		fmt.Printf("开启定时加载Triangle任务失败，err=%v\n", err)
+		return
+	}
+	err = gopool.Submit(timerGetTopic)
 	if err != nil {
 		fmt.Printf("开启定时加载Topic任务失败，err=%v\n", err)
 		return
@@ -60,8 +63,6 @@ func init() {
 		ABI = &parsed
 	}
 
-	// 构造最新区块
-	LatestBlockNumber = rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 }
 
 func GetPairControl() pairtypes.PairCache {

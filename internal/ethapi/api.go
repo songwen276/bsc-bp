@@ -1445,11 +1445,8 @@ func (s *BlockChainAPI) BlockChainCallBatch(datas [][]byte) (string, error) {
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
 	var wg sync.WaitGroup
 	for i, data := range datas {
-		var args TransactionArgs
-		err := json.Unmarshal(data, &args)
-		if err != nil {
-			return "", err
-		}
+		bytes := hexutil.Bytes(data)
+		args := TransactionArgs{From: &pair.From, To: &pair.To, Input: &bytes}
 		wg.Add(1)
 		taskId := i
 		gopool.Submit(func() {
