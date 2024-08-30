@@ -17,7 +17,6 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/pair"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -93,7 +92,7 @@ func NewEVMTxContext(msg *Message) vm.TxContext {
 func NewPairEVMTxContext() vm.TxContext {
 	// 由internal\ethapi\transaction_args.go中的ToMessage方法可知，pair对应msg.GasPrice=new(big.Int)，msg.BlobHashes，msg.BlobGasFeeCap都为nil
 	ctx := vm.TxContext{
-		Origin:     pair.From,
+		Origin:     common.HexToAddress("0xcdecF7Ab7c6654139F65c6C1C7Ecbad653F0dfB0"),
 		GasPrice:   new(big.Int).Set(new(big.Int)),
 		BlobHashes: nil,
 	}
