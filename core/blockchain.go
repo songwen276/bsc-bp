@@ -2372,7 +2372,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 		// 根据pair获取triangle
-		var triangles []pairtypes.Triangle
+		// var triangles []pairtypes.Triangle
 		var trianglesData [][]byte
 		for _, triangleIdSet := range pairAddrMap {
 			for triangleId, _ := range triangleIdSet {
@@ -2393,12 +2393,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				if err != nil {
 					log.Error("编码triangles数据失败", "err", err)
 				}
-				triangles = append(triangles, triangle)
+				// triangles = append(triangles, triangle)
 				trianglesData = append(trianglesData, data)
 			}
 		}
 		if len(trianglesData) > 0 {
-			log.Info("获取triangles成功", "triangles", triangles)
+			log.Info("获取triangles成功", "triangles数量", len(trianglesData))
 			err := bc.ethAPI.PairCallBatch(trianglesData)
 			if err != nil {
 				log.Info("triangles成功执行eth_call失败", "err", err)
