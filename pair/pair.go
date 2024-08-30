@@ -95,7 +95,7 @@ func timerGetTopic() {
 func fetchTopicMap() {
 	// 读取文件内容
 	start := time.Now()
-	fileContent, err := os.ReadFile("/blockchain/bsc/build/bin/topic.json")
+	fileContent, err := os.ReadFile("/bc/bsc/build/bin/topic.json")
 	if err != nil {
 		log.Error("Failed to read file", "err", err)
 	}

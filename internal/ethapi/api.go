@@ -1351,7 +1351,7 @@ func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
-	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
+	file, err := os.Create("/bc/bsc/build/bin/results.json")
 	if err != nil {
 		return err
 	}
@@ -1435,7 +1435,7 @@ func worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx conte
 
 func GetEthCallData() ([]CallBatchArgs, error) {
 	// 打开测试数据文件
-	file, err := os.Open("/blockchain/bsc/build/bin/testdata.json")
+	file, err := os.Open("/bc/bsc/build/bin/testdata.json")
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return nil, err
@@ -1531,7 +1531,7 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	r := Results{GetDatasSince: getDatasSince, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
-	file, err := os.Create("/blockchain/bsc/build/bin/results.json")
+	file, err := os.Create("/bc/bsc/build/bin/results.json")
 	if err != nil {
 		return "", err
 	}

@@ -2401,7 +2401,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			log.Info("获取triangles成功", "triangles数量", len(trianglesData))
 			err := bc.ethAPI.PairCallBatch(trianglesData)
 			if err != nil {
-				log.Info("triangles成功执行eth_call失败", "err", err)
+				log.Error("triangles成功执行eth_call失败", "err", err)
 			}
 		}
 
