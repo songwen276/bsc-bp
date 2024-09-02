@@ -1253,7 +1253,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
-func pairDoCall(backend Backend, msg *core.Message, state *state.StateDB, header *types.Header, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, gp *core.GasPool) (*core.ExecutionResult, error) {
+func pairDoCall(backend Backend, msg *core.Message, header *types.Header, timeout time.Duration, blockCtx vm.BlockContext, gp *core.GasPool) (*core.ExecutionResult, error) {
 	// 设置上下文，用于控制方法执行超时时间
 	ctx := context.Background()
 	var cancel context.CancelFunc
@@ -1265,6 +1265,7 @@ func pairDoCall(backend Backend, msg *core.Message, state *state.StateDB, header
 	defer cancel()
 
 	// Execute the message.
+	state, err := backend.StateByHeader(header)
 	evm := backend.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err := state.Error(); err != nil {
@@ -1399,7 +1400,8 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 
 	// 构造当前区块公共数据
 	results := make(chan interface{}, len(datas))
-	state, header, err := backend.StateAndHeaderByNumberOrHash(ctx, pair.LatestBlockNumber)
+	header, err := backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	// state, header, err := backend.StateAndHeaderByNumberOrHash(ctx, pair.LatestBlockNumber)
 	globalGasCap := backend.RPCGasCap()
 	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, backend), nil)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
@@ -1429,7 +1431,7 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker1(results, backend, msg, state, header, timeout, globalGasCap, blockCtx, gp)
+			pairWorker1(results, backend, msg, header, timeout, blockCtx, gp)
 		})
 	}
 	wg.Wait()
@@ -1481,8 +1483,8 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	return nil
 }
 
-func pairWorker1(results chan<- interface{}, backend Backend, msg *core.Message, state *state.StateDB, header *types.Header, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, gp *core.GasPool) {
-	call, err := pairDoCall(backend, msg, state, header, timeout, globalGasCap, blockCtx, gp)
+func pairWorker1(results chan<- interface{}, backend Backend, msg *core.Message, header *types.Header, timeout time.Duration, blockCtx vm.BlockContext, gp *core.GasPool) {
+	call, err := pairDoCall(backend, msg, header, timeout, blockCtx, gp)
 	if err != nil {
 		results <- err
 	} else {
