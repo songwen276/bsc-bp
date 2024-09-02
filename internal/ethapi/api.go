@@ -1280,18 +1280,33 @@ func pairDoCall(args TransactionArgs, state *state.StateDB, timeout time.Duratio
 func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 	// 初始化构造当前区块公共数据
 	log.Info("开始执行PairCallBatch")
-	start := time.Now()
+	// start := time.Now()
 	results := make(chan interface{}, len(datas))
 
-	// 提交任务到协程池，所有协程完成后关闭结果读取通道
-	var wg sync.WaitGroup
+	// 构造测试数据
+	args := make([]TransactionArgs, 0)
 	for _, data := range datas {
 		bytes := hexutil.Bytes(data)
-		args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+		args = append(args, TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes})
+	}
+
+	start := time.Now()
+	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	var wg sync.WaitGroup
+	// for _, data := range datas {
+	// 	bytes := hexutil.Bytes(data)
+	// 	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	// 	wg.Add(1)
+	// 	gopool.Submit(func() {
+	// 		defer wg.Done()
+	// 		pairWorker(s, results, args, &pair.LatestBlockNumber)
+	// 	})
+	// }
+	for _, arg := range args {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker(s, results, args, &pair.LatestBlockNumber)
+			pairWorker(s, results, arg, &pair.LatestBlockNumber)
 		})
 	}
 	wg.Wait()

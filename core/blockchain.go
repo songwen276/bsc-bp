@@ -2370,7 +2370,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				}
 			}
 		}
-		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
+		// log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
+		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes)
 		// 根据pair获取triangle
 		// var triangles []pairtypes.Triangle
 		var trianglesData [][]byte
