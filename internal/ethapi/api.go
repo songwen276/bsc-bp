@@ -1253,18 +1253,28 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
-func pairDoCall(args TransactionArgs, state *state.StateDB, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, evm *vm.EVM, gp *core.GasPool) (*core.ExecutionResult, error) {
-	// parse the message.
-	msg, err := args.ToMessage(globalGasCap, blockCtx.BaseFee)
-	if err != nil {
-		return nil, err
+func pairDoCall(backend Backend, msg *core.Message, state *state.StateDB, header *types.Header, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, gp *core.GasPool) (*core.ExecutionResult, error) {
+	// 设置上下文，用于控制方法执行超时时间
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
 	}
+	defer cancel()
 
 	// Execute the message.
+	evm := backend.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err := state.Error(); err != nil {
 		return nil, err
 	}
+
+	gopool.Submit(func() {
+		<-ctx.Done()
+		evm.Cancel()
+	})
 
 	// If the timer caused an abort, return an appropriate error message
 	if evm.Cancelled() {
@@ -1284,11 +1294,13 @@ func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 	results := make(chan interface{}, len(datas))
 
 	// 构造测试数据
+	startGz := time.Now()
 	args := make([]TransactionArgs, 0)
 	for _, data := range datas {
 		bytes := hexutil.Bytes(data)
 		args = append(args, TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes})
 	}
+	log.Info("构造数据所花时间", "runtime", time.Since(startGz))
 
 	start := time.Now()
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
@@ -1374,17 +1386,16 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	log.Info("开始执行PairCallBatch")
 	start := time.Now()
 
-	// 设置上下文，用于控制方法执行超时时间
 	ctx := context.Background()
-	var cancel context.CancelFunc
+	// var cancel context.CancelFunc
 	backend := s.b
 	timeout := backend.RPCEVMTimeout()
-	if timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-	defer cancel()
+	// if timeout > 0 {
+	// 	ctx, cancel = context.WithTimeout(ctx, timeout)
+	// } else {
+	// 	ctx, cancel = context.WithCancel(ctx)
+	// }
+	// defer cancel()
 
 	// 构造当前区块公共数据
 	results := make(chan interface{}, len(datas))
@@ -1392,23 +1403,33 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	globalGasCap := backend.RPCGasCap()
 	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, backend), nil)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	evm := backend.GetPairEVM(ctx, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
+	// evm := backend.GetPairEVM(ctx, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 
 	// 启动协程用于监听到上下文发送超时消息后释放evm
-	gopool.Submit(func() {
-		<-ctx.Done()
-		evm.Cancel()
-	})
+	// gopool.Submit(func() {
+	// 	<-ctx.Done()
+	// 	evm.Cancel()
+	// })
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
 	var wg sync.WaitGroup
 	for _, data := range datas {
-		bytes := hexutil.Bytes(data)
-		args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+		// 构造msg
+		msg := &core.Message{
+			From:              pair.From,
+			To:                &pair.To,
+			Value:             new(big.Int),
+			GasLimit:          globalGasCap,
+			GasPrice:          new(big.Int),
+			GasFeeCap:         new(big.Int),
+			GasTipCap:         new(big.Int),
+			Data:              data,
+			SkipAccountChecks: true,
+		}
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker1(results, args, state, timeout, globalGasCap, blockCtx, evm, gp)
+			pairWorker1(results, backend, msg, state, header, timeout, globalGasCap, blockCtx, gp)
 		})
 	}
 	wg.Wait()
@@ -1460,8 +1481,8 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	return nil
 }
 
-func pairWorker1(results chan<- interface{}, args TransactionArgs, state *state.StateDB, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, evm *vm.EVM, gp *core.GasPool) {
-	call, err := pairDoCall(args, state, timeout, globalGasCap, blockCtx, evm, gp)
+func pairWorker1(results chan<- interface{}, backend Backend, msg *core.Message, state *state.StateDB, header *types.Header, timeout time.Duration, globalGasCap uint64, blockCtx vm.BlockContext, gp *core.GasPool) {
+	call, err := pairDoCall(backend, msg, state, header, timeout, globalGasCap, blockCtx, gp)
 	if err != nil {
 		results <- err
 	} else {
