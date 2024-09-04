@@ -17,11 +17,10 @@
 package vm
 
 import (
+	"github.com/holiman/uint256"
 	"math/big"
 	"sync"
 	"sync/atomic"
-
-	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -207,17 +206,26 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
+	// 默认evm.depth=0直接跳过
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance
+	// 不交易value直接跳过
 	if !value.IsZero() && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, gas, ErrInsufficientBalance
 	}
+
+	// eth_call不更改状态无需回滚，因此不需要快照，该方法最后的RevertToSnapshot可跳过
 	snapshot := evm.StateDB.Snapshot()
+
+	// 当前合约非eth原始合约，p=nil，isPrecompile=false
 	p, isPrecompile := evm.precompile(addr)
+
+	// eth_call获取evm时直接构造&vm.Config{NoBaseFee: true}传入，所以Tracer=nil
 	debug := evm.Config.Tracer != nil
 
+	// 判断合约地址是否存在，已存在跳过
 	if !evm.StateDB.Exist(addr) {
 		if !isPrecompile && evm.chainRules.IsEIP158 && value.IsZero() {
 			// Calling a non existing account, don't do anything, but ping the tracer
@@ -234,9 +242,12 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
+
+	// 不交易value直接跳过不会转账
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
 
 	// Capture the tracer start/end events in debug mode
+	// 前面可知debug=false直接跳过
 	if debug {
 		if evm.depth == 0 {
 			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value.ToBig())
@@ -264,9 +275,12 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			addrCopy := addr
 			// If the account has no code, we can abort here
 			// The depth-check is already done, and precompiles handled above
+			// 新建合约
 			contract := NewContract(caller, AccountRef(addrCopy), value, gas)
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
+			// interRunNow := time.Now()
 			ret, err = evm.interpreter.Run(contract, input, false)
+			// log.Info("runNow", "runtime", time.Since(interRunNow))
 			gas = contract.Gas
 		}
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 type PairAPI interface {
-	PairCallBatch1(datas [][]byte) error
+	PairCallBatch(datas [][]byte) error
 }
 
 type Triangle struct {

@@ -1253,7 +1253,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
-func pairDoCall(backend Backend, msg *core.Message, header *types.Header, timeout time.Duration, blockCtx vm.BlockContext, gp *core.GasPool) (*core.ExecutionResult, error) {
+func pairDoCall(backend Backend, msg *core.Message, timeout time.Duration, gp *core.GasPool) (*core.ExecutionResult, error) {
 	// 设置上下文，用于控制方法执行超时时间
 	ctx := context.Background()
 	var cancel context.CancelFunc
@@ -1265,7 +1265,11 @@ func pairDoCall(backend Backend, msg *core.Message, header *types.Header, timeou
 	defer cancel()
 
 	// Execute the message.
-	state, err := backend.StateByHeader(header)
+	state, header, err := backend.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if state == nil || err != nil {
+		return nil, err
+	}
+	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, backend), nil)
 	evm := backend.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err := state.Error(); err != nil {
@@ -1387,7 +1391,7 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	log.Info("开始执行PairCallBatch")
 	start := time.Now()
 
-	ctx := context.Background()
+	// ctx := context.Background()
 	// var cancel context.CancelFunc
 	backend := s.b
 	timeout := backend.RPCEVMTimeout()
@@ -1400,10 +1404,9 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 
 	// 构造当前区块公共数据
 	results := make(chan interface{}, len(datas))
-	header, err := backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	// header, err := backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
 	// state, header, err := backend.StateAndHeaderByNumberOrHash(ctx, pair.LatestBlockNumber)
 	globalGasCap := backend.RPCGasCap()
-	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, backend), nil)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	// evm := backend.GetPairEVM(ctx, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 
@@ -1431,7 +1434,7 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker1(results, backend, msg, header, timeout, blockCtx, gp)
+			pairWorker1(results, backend, msg, timeout, gp)
 		})
 	}
 	wg.Wait()
@@ -1483,12 +1486,16 @@ func (s *BlockChainAPI) PairCallBatch1(datas [][]byte) error {
 	return nil
 }
 
-func pairWorker1(results chan<- interface{}, backend Backend, msg *core.Message, header *types.Header, timeout time.Duration, blockCtx vm.BlockContext, gp *core.GasPool) {
-	call, err := pairDoCall(backend, msg, header, timeout, blockCtx, gp)
+func pairWorker1(results chan<- interface{}, backend Backend, msg *core.Message, timeout time.Duration, gp *core.GasPool) {
+	call, err := pairDoCall(backend, msg, timeout, gp)
 	if err != nil {
 		results <- err
 	} else {
-		results <- call
+		if len(call.Revert()) > 0 {
+			results <- newRevertError(call.Revert())
+		} else {
+			results <- call.Return()
+		}
 	}
 }
 
