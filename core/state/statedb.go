@@ -1836,9 +1836,9 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 		root = types.EmptyRootHash
 	}
 
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			stateObjectCacheMap := pair.GetStateObjectCacheMap()
 			if _, loaded := stateObjectCacheMap.LoadAndDelete(addr); loaded {
 				stateObjectCacheMap.Store(addr, obj)
 			}
