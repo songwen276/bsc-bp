@@ -837,11 +837,7 @@ func (s *StateDB) getDeletedStateObjectFromCache(addr common.Address) *stateObje
 	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object = &stateObject{}
-		err := pair.DeepCopy(stateObjectCache.(*stateObject), object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
+		object := stateObjectCache.(*stateObject).deepCopy(s)
 		s.setStateObject(object)
 		return object
 	}
