@@ -77,6 +77,14 @@ func GetStateObjectCacheMap() *sync.Map {
 	return stateObjectCacheMap
 }
 
+func DeepCopy(src, dst interface{}) error {
+	data, err := json.Marshal(src) // 序列化
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, dst) // 反序列化
+}
+
 func timerGetTriangle() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()

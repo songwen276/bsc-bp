@@ -450,7 +450,11 @@ func (s *StateDB) GetBalance(addr common.Address) *uint256.Int {
 func (s *StateDB) GetBalanceFromCache(addr common.Address) *uint256.Int {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject)
+		var object *stateObject
+		err := pair.DeepCopy(stateObjectCache, object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
 		return object.Balance()
 	}
 	stateObject := s.getStateObject(addr)
@@ -497,7 +501,11 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 func (s *StateDB) GetCodeFromCache(addr common.Address) []byte {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject)
+		var object *stateObject
+		err := pair.DeepCopy(stateObjectCache, object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
 		return object.Code()
 	}
 	stateObject := s.getStateObject(addr)
@@ -527,7 +535,11 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 func (s *StateDB) GetCodeSizeFromCache(addr common.Address) int {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject)
+		var object *stateObject
+		err := pair.DeepCopy(stateObjectCache, object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
 		return object.CodeSize()
 	}
 	stateObject := s.getStateObject(addr)
@@ -549,7 +561,11 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 func (s *StateDB) GetCodeHashFromCache(addr common.Address) common.Hash {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject)
+		var object *stateObject
+		err := pair.DeepCopy(stateObjectCache, object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
 		return common.BytesToHash(object.CodeHash())
 	}
 	stateObject := s.getStateObject(addr)
@@ -572,7 +588,11 @@ func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 func (s *StateDB) GetStateFromCache(addr common.Address, hash common.Hash) common.Hash {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject)
+		var object *stateObject
+		err := pair.DeepCopy(stateObjectCache, object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
 		return object.GetState(hash)
 	}
 	stateObject := s.getStateObject(addr)
@@ -1839,7 +1859,7 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			if _, loaded := stateObjectCacheMap.LoadAndDelete(addr); loaded {
+			if _, loaded := stateObjectCacheMap.Load(addr); loaded {
 				stateObjectCacheMap.Store(addr, obj)
 			}
 		}
