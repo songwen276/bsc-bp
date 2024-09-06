@@ -426,16 +426,8 @@ func (s *StateDB) Empty(addr common.Address) bool {
 }
 
 func (s *StateDB) EmptyFromCache(addr common.Address) bool {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if _, ok := stateObjectCacheMap.Load(addr); ok {
-		return false
-	}
-	so := s.getStateObject(addr)
-	if so == nil || so.empty() {
-		return true
-	}
-	stateObjectCacheMap.Store(addr, so)
-	return false
+	so := s.getStateObjectFromCache(addr)
+	return so == nil || so.empty()
 }
 
 // GetBalance retrieves the balance from the given address or 0 if object not found
@@ -448,18 +440,8 @@ func (s *StateDB) GetBalance(addr common.Address) *uint256.Int {
 }
 
 func (s *StateDB) GetBalanceFromCache(addr common.Address) *uint256.Int {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object *stateObject
-		err := pair.DeepCopy(stateObjectCache, object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		return object.Balance()
-	}
-	stateObject := s.getStateObject(addr)
+	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
-		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.Balance()
 	}
 	return common.U2560
@@ -499,18 +481,8 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 }
 
 func (s *StateDB) GetCodeFromCache(addr common.Address) []byte {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object *stateObject
-		err := pair.DeepCopy(stateObjectCache, object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		return object.Code()
-	}
-	stateObject := s.getStateObject(addr)
+	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
-		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.Code()
 	}
 	return nil
@@ -533,18 +505,8 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 }
 
 func (s *StateDB) GetCodeSizeFromCache(addr common.Address) int {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object *stateObject
-		err := pair.DeepCopy(stateObjectCache, object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		return object.CodeSize()
-	}
-	stateObject := s.getStateObject(addr)
+	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
-		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.CodeSize()
 	}
 	return 0
@@ -559,18 +521,8 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 }
 
 func (s *StateDB) GetCodeHashFromCache(addr common.Address) common.Hash {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object *stateObject
-		err := pair.DeepCopy(stateObjectCache, object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		return common.BytesToHash(object.CodeHash())
-	}
-	stateObject := s.getStateObject(addr)
+	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
-		stateObjectCacheMap.Store(addr, stateObject)
 		return common.BytesToHash(stateObject.CodeHash())
 	}
 	return common.Hash{}
@@ -586,18 +538,8 @@ func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 }
 
 func (s *StateDB) GetStateFromCache(addr common.Address, hash common.Hash) common.Hash {
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		var object *stateObject
-		err := pair.DeepCopy(stateObjectCache, object)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		return object.GetState(hash)
-	}
-	stateObject := s.getStateObject(addr)
+	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
-		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.GetState(hash)
 	}
 	return common.Hash{}
@@ -811,6 +753,13 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 	return nil
 }
 
+func (s *StateDB) getStateObjectFromCache(addr common.Address) *stateObject {
+	if obj := s.getDeletedStateObjectFromCache(addr); obj != nil && !obj.deleted {
+		return obj
+	}
+	return nil
+}
+
 // getDeletedStateObject is similar to getStateObject, but instead of returning
 // nil for a deleted state object, it returns the actual object with the deleted
 // flag set. This is needed by the state journal to revert to the correct s-
@@ -874,6 +823,85 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// Insert into the live set
 	obj := newObject(s, addr, data)
 	s.setStateObject(obj)
+	return obj
+}
+
+func (s *StateDB) getDeletedStateObjectFromCache(addr common.Address) *stateObject {
+	// Prefer live objects if any is available
+	// 首先查看StateDB自己本身是否有缓存
+	if obj := s.stateObjects[addr]; obj != nil {
+		return obj
+	}
+
+	// StateDB自己本身无缓存时，在从公共的缓存中获取，如果存在则将其复制成新的实例更新到StateDB中
+	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		var object = &stateObject{}
+		err := pair.DeepCopy(stateObjectCache.(*stateObject), object)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
+		s.setStateObject(object)
+		return object
+	}
+
+	// If no live objects are available, attempt to use snapshots
+	// 如果StateDB自己本身无缓存，公共缓存也没有再从snapshot和磁盘中获取，获取后除了要更新到StateDB，还要将其添加到公共缓存中
+	var data *types.StateAccount
+	if s.snap != nil {
+		start := time.Now()
+		acc, err := s.snap.Account(crypto.HashData(s.hasher, addr.Bytes()))
+		if metrics.EnabledExpensive {
+			s.SnapshotAccountReads += time.Since(start)
+		}
+		if err == nil {
+			if acc == nil {
+				return nil
+			}
+			data = &types.StateAccount{
+				Nonce:    acc.Nonce,
+				Balance:  acc.Balance,
+				CodeHash: acc.CodeHash,
+				Root:     common.BytesToHash(acc.Root),
+			}
+			if len(data.CodeHash) == 0 {
+				data.CodeHash = types.EmptyCodeHash.Bytes()
+			}
+			if data.Root == (common.Hash{}) {
+				data.Root = types.EmptyRootHash
+			}
+		}
+	}
+
+	// If snapshot unavailable or reading from it failed, load from the database
+	if data == nil {
+		if s.trie == nil {
+			tr, err := s.db.OpenTrie(s.originalRoot)
+			if err != nil {
+				s.setError(errors.New("failed to open trie tree"))
+				return nil
+			}
+			s.trie = tr
+		}
+		start := time.Now()
+		var err error
+		data, err = s.trie.GetAccount(addr)
+		if metrics.EnabledExpensive {
+			s.AccountReads += time.Since(start)
+		}
+		if err != nil {
+			s.setError(fmt.Errorf("getDeleteStateObject (%x) error: %w", addr.Bytes(), err))
+			return nil
+		}
+		if data == nil {
+			return nil
+		}
+	}
+	// Insert into the live set
+	obj := newObject(s, addr, data)
+	s.setStateObject(obj)
+	stateObjectCacheMap.Store(addr, obj)
 	return obj
 }
 
