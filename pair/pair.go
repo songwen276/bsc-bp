@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-var stateObjectCacheMap *sync.Map
+var stateObjectCacheMap = new(sync.Map)
 
 var pairCache = &pairtypes.PairCache{
 	TriangleMap:     make(map[int64]pairtypes.Triangle, 2000000),
