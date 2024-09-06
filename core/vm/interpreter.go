@@ -58,6 +58,7 @@ type EVMInterpreter struct {
 
 	readOnly   bool   // Whether to throw on stateful modifications
 	returnData []byte // Last CALL's return data for subsequent reuse
+	Flag       int8
 }
 
 // NewEVMInterpreter returns a new instance of the Interpreter.

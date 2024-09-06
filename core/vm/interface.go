@@ -32,14 +32,18 @@ type StateDB interface {
 	SubBalance(common.Address, *uint256.Int)
 	AddBalance(common.Address, *uint256.Int)
 	GetBalance(common.Address) *uint256.Int
+	GetBalanceFromCache(common.Address) *uint256.Int
 
 	GetNonce(common.Address) uint64
 	SetNonce(common.Address, uint64)
 
 	GetCodeHash(common.Address) common.Hash
+	GetCodeHashFromCache(common.Address) common.Hash
 	GetCode(common.Address) []byte
+	GetCodeFromCache(common.Address) []byte
 	SetCode(common.Address, []byte)
 	GetCodeSize(common.Address) int
+	GetCodeSizeFromCache(common.Address) int
 
 	AddRefund(uint64)
 	SubRefund(uint64)
@@ -47,6 +51,7 @@ type StateDB interface {
 
 	GetCommittedState(common.Address, common.Hash) common.Hash
 	GetState(common.Address, common.Hash) common.Hash
+	GetStateFromCache(common.Address, common.Hash) common.Hash
 	SetState(common.Address, common.Hash, common.Hash)
 
 	GetTransientState(addr common.Address, key common.Hash) common.Hash
@@ -63,6 +68,7 @@ type StateDB interface {
 	// Empty returns whether the given account is empty. Empty
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
+	EmptyFromCache(common.Address) bool
 
 	AddressInAccessList(addr common.Address) bool
 	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)

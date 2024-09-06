@@ -20,6 +20,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/pair"
 	"runtime"
 	"sort"
 	"sync"
@@ -424,10 +425,37 @@ func (s *StateDB) Empty(addr common.Address) bool {
 	return so == nil || so.empty()
 }
 
+func (s *StateDB) EmptyFromCache(addr common.Address) bool {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if _, ok := stateObjectCacheMap.Load(addr); ok {
+		return false
+	}
+	so := s.getStateObject(addr)
+	if so == nil || so.empty() {
+		return true
+	}
+	stateObjectCacheMap.Store(addr, so)
+	return false
+}
+
 // GetBalance retrieves the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *uint256.Int {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
+		return stateObject.Balance()
+	}
+	return common.U2560
+}
+
+func (s *StateDB) GetBalanceFromCache(addr common.Address) *uint256.Int {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		object := stateObjectCache.(*stateObject)
+		return object.Balance()
+	}
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.Balance()
 	}
 	return common.U2560
@@ -466,6 +494,20 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 	return nil
 }
 
+func (s *StateDB) GetCodeFromCache(addr common.Address) []byte {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		object := stateObjectCache.(*stateObject)
+		return object.Code()
+	}
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		stateObjectCacheMap.Store(addr, stateObject)
+		return stateObject.Code()
+	}
+	return nil
+}
+
 func (s *StateDB) GetRoot(addr common.Address) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -482,9 +524,37 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 	return 0
 }
 
+func (s *StateDB) GetCodeSizeFromCache(addr common.Address) int {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		object := stateObjectCache.(*stateObject)
+		return object.CodeSize()
+	}
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		stateObjectCacheMap.Store(addr, stateObject)
+		return stateObject.CodeSize()
+	}
+	return 0
+}
+
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
+		return common.BytesToHash(stateObject.CodeHash())
+	}
+	return common.Hash{}
+}
+
+func (s *StateDB) GetCodeHashFromCache(addr common.Address) common.Hash {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		object := stateObjectCache.(*stateObject)
+		return common.BytesToHash(object.CodeHash())
+	}
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		stateObjectCacheMap.Store(addr, stateObject)
 		return common.BytesToHash(stateObject.CodeHash())
 	}
 	return common.Hash{}
@@ -494,6 +564,20 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
+		return stateObject.GetState(hash)
+	}
+	return common.Hash{}
+}
+
+func (s *StateDB) GetStateFromCache(addr common.Address, hash common.Hash) common.Hash {
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+		object := stateObjectCache.(*stateObject)
+		return object.GetState(hash)
+	}
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		stateObjectCacheMap.Store(addr, stateObject)
 		return stateObject.GetState(hash)
 	}
 	return common.Hash{}
@@ -1751,6 +1835,16 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	if root == (common.Hash{}) {
 		root = types.EmptyRootHash
 	}
+
+	for addr := range s.stateObjectsDirty {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			stateObjectCacheMap := pair.GetStateObjectCacheMap()
+			if _, loaded := stateObjectCacheMap.LoadAndDelete(addr); loaded {
+				stateObjectCacheMap.Store(addr, obj)
+			}
+		}
+	}
+
 	// Clear all internal flags at the end of commit operation.
 	s.accounts = make(map[common.Hash][]byte)
 	s.storages = make(map[common.Hash]map[common.Hash][]byte)

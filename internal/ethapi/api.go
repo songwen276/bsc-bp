@@ -1253,6 +1253,57 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
+func flagDoCall(ctx context.Context, b Backend, args TransactionArgs, state *state.StateDB, header *types.Header, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
+	if err := overrides.Apply(state); err != nil {
+		return nil, err
+	}
+	// Setup context so it may be cancelled the call has completed
+	// or, in case of unmetered gas, setup a context with a timeout.
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	// Make sure the context is cancelled when the call has completed
+	// this makes sure resources are cleaned up.
+	defer cancel()
+
+	// Get a new instance of the EVM.
+	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, b), nil)
+	if blockOverrides != nil {
+		blockOverrides.Apply(&blockCtx)
+	}
+	msg, err := args.ToMessage(globalGasCap, blockCtx.BaseFee)
+	if err != nil {
+		return nil, err
+	}
+	evm := b.GetFlagEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx, 1)
+
+	// Wait for the context to be done and cancel the evm. Even if the
+	// EVM has finished, cancelling may be done (repeatedly)
+	gopool.Submit(func() {
+		<-ctx.Done()
+		evm.Cancel()
+	})
+
+	// Execute the message.
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	result, err := core.ApplyMessage(evm, msg, gp)
+	if err := state.Error(); err != nil {
+		return nil, err
+	}
+
+	// If the timer caused an abort, return an appropriate error message
+	if evm.Cancelled() {
+		return nil, fmt.Errorf("execution aborted (timeout = %v)", timeout)
+	}
+	if err != nil {
+		return result, fmt.Errorf("err: %w (supplied gas %d)", err, msg.GasLimit)
+	}
+	return result, nil
+}
+
 func pairDoCall(backend Backend, msg *core.Message, timeout time.Duration, gp *core.GasPool) (*core.ExecutionResult, error) {
 	// 设置上下文，用于控制方法执行超时时间
 	ctx := context.Background()
@@ -1294,36 +1345,19 @@ func pairDoCall(backend Backend, msg *core.Message, timeout time.Duration, gp *c
 // PairCallBatch executes Call
 func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 	// 初始化构造当前区块公共数据
+	start := time.Now()
 	log.Info("开始执行PairCallBatch")
-	// start := time.Now()
 	results := make(chan interface{}, len(datas))
 
-	// 构造测试数据
-	startGz := time.Now()
-	args := make([]TransactionArgs, 0)
-	for _, data := range datas {
-		bytes := hexutil.Bytes(data)
-		args = append(args, TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes})
-	}
-	log.Info("构造数据所花时间", "runtime", time.Since(startGz))
-
-	start := time.Now()
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
 	var wg sync.WaitGroup
-	// for _, data := range datas {
-	// 	bytes := hexutil.Bytes(data)
-	// 	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
-	// 	wg.Add(1)
-	// 	gopool.Submit(func() {
-	// 		defer wg.Done()
-	// 		pairWorker(s, results, args, &pair.LatestBlockNumber)
-	// 	})
-	// }
-	for _, arg := range args {
+	for _, data := range datas {
+		bytes := hexutil.Bytes(data)
+		args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker(s, results, arg, &pair.LatestBlockNumber)
+			pairWorker(s, results, args, &pair.LatestBlockNumber)
 		})
 	}
 	wg.Wait()
@@ -1378,7 +1412,7 @@ func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 func pairWorker(s *BlockChainAPI, results chan<- interface{}, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash) {
 	// 设置上下文，用于控制每个任务方法执行超时时间
 	ctx := context.Background()
-	call, err := s.Call(ctx, args, blockNrOrHash, nil, nil)
+	call, err := s.FlagCall(ctx, args, blockNrOrHash, nil, nil)
 	if err != nil {
 		results <- err
 	} else {
@@ -1510,6 +1544,17 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	return doCall(ctx, b, args, state, header, overrides, blockOverrides, timeout, globalGasCap)
 }
 
+func FlagDoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
+	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
+
+	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if state == nil || err != nil {
+		return nil, err
+	}
+
+	return flagDoCall(ctx, b, args, state, header, overrides, blockOverrides, timeout, globalGasCap)
+}
+
 // Call executes the given transaction on the state for the given block number.
 //
 // Additionally, the caller can specify a batch of contract for fields overriding.
@@ -1522,6 +1567,22 @@ func (s *BlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrO
 		blockNrOrHash = &latest
 	}
 	result, err := DoCall(ctx, s.b, args, *blockNrOrHash, overrides, blockOverrides, s.b.RPCEVMTimeout(), s.b.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
+	// If the result contains a revert reason, try to unpack and return it.
+	if len(result.Revert()) > 0 {
+		return nil, newRevertError(result.Revert())
+	}
+	return result.Return(), result.Err
+}
+
+func (s *BlockChainAPI) FlagCall(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride, blockOverrides *BlockOverrides) (hexutil.Bytes, error) {
+	if blockNrOrHash == nil {
+		latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+		blockNrOrHash = &latest
+	}
+	result, err := FlagDoCall(ctx, s.b, args, *blockNrOrHash, overrides, blockOverrides, s.b.RPCEVMTimeout(), s.b.RPCGasCap())
 	if err != nil {
 		return nil, err
 	}

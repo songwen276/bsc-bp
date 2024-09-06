@@ -14,10 +14,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-var pairCache = pairtypes.PairCache{
+var stateObjectCacheMap *sync.Map
+
+var pairCache = &pairtypes.PairCache{
 	TriangleMap:     make(map[int64]pairtypes.Triangle, 2000000),
 	PairTriangleMap: make(map[string]pairtypes.Set, 2000000),
 }
@@ -66,8 +69,12 @@ func init() {
 
 }
 
-func GetPairControl() pairtypes.PairCache {
+func GetPairControl() *pairtypes.PairCache {
 	return pairCache
+}
+
+func GetStateObjectCacheMap() *sync.Map {
+	return stateObjectCacheMap
 }
 
 func timerGetTriangle() {
@@ -139,9 +146,9 @@ func fetchTriangleMap() {
 		triangle.Pair1 = common.HexToAddress(triangle.Pair1).Hex()
 		triangle.Pair2 = common.HexToAddress(triangle.Pair2).Hex()
 		pairCache.TriangleMap[triangle.ID] = triangle
-		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair0)
-		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair1)
-		addTriangleIdToPairTriangleMap(triangle.ID, triangle.Pair2)
+		addTriangleIdToPairTriangleMap(triangle.Pair0, triangle.ID)
+		addTriangleIdToPairTriangleMap(triangle.Pair1, triangle.ID)
+		addTriangleIdToPairTriangleMap(triangle.Pair2, triangle.ID)
 	}
 
 	// 检查是否有遍历中的错误
@@ -154,7 +161,7 @@ func fetchTriangleMap() {
 
 var i = 0
 
-func addTriangleIdToPairTriangleMap(id int64, pair string) {
+func addTriangleIdToPairTriangleMap(pair string, id int64) {
 	if pairSet, exists := pairCache.PairTriangleMap[pair]; exists {
 		pairSet.Add(id)
 	} else {
