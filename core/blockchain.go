@@ -2345,7 +2345,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		// 根据receipts获取pair
 		pairCache := pair.GetPairControl()
 		log.Info("获取pairCache成功", "triange总数", len(pairCache.TriangleMap), "pair总数", len(pairCache.PairTriangleMap))
-		pairAddrMap := make(map[string]pairtypes.Set)
+		pairAddrMap := make(map[string]*pairtypes.Set)
 		pairOccurTimes := 0
 		for _, receipt := range receipts {
 			for _, reLog := range receipt.Logs {
@@ -2364,7 +2364,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 						}
 						pairOccurTimes++
 						address = common.HexToAddress(address).Hex()
-						pairAddrMap[address] = pairCache.PairTriangleMap[address]
+						pairAddrMap[address] = pairCache.GetPairSet(address)
 						log.Debug("交易收据日志打印，", "logBlockNum", reLog.BlockNumber, "Log.Index", reLog.Index, "topic", topic0Str, "topicOper", topicOper, "address", address)
 					}
 				}
@@ -2376,8 +2376,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		// var triangles []pairtypes.Triangle
 		var trianglesData [][]byte
 		for _, triangleIdSet := range pairAddrMap {
-			for triangleId, _ := range triangleIdSet {
-				triangle := pairCache.TriangleMap[triangleId]
+			for _, triangleId := range triangleIdSet.Iterate() {
+				triangle := pairCache.GetTriangle(triangleId)
 				triangular := pairtypes.ITriangularArbitrageTriangular{
 					Token0:  common.HexToAddress(triangle.Token0),
 					Router0: common.HexToAddress(triangle.Router0),

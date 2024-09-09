@@ -726,7 +726,9 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
 		if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-			object := newObject(s, addr, stateObjectCache.(*stateObject).origin)
+			objCache := stateObjectCache.(*stateObject)
+			object := newObject(s, addr, objCache.origin)
+			object.code = objCache.code
 			s.setStateObject(object)
 			return object
 		}
@@ -788,6 +790,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	obj := newObject(s, addr, data)
 	s.setStateObject(obj)
 	if s.Flag == 1 {
+		obj.Code()
 		stateObjectCacheMap.Store(addr, obj)
 	}
 	return obj

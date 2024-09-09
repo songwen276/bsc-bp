@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"strings"
+	"sync"
 )
 
 type PairAPI interface {
@@ -36,35 +37,116 @@ type ITriangularArbitrageTriangular struct {
 }
 
 type PairCache struct {
+	mu              sync.RWMutex
 	TriangleMap     map[int64]Triangle
+	PairTriangleMap map[string]*Set
 	TopicMap        map[string]string
-	PairTriangleMap map[string]Set
+}
+
+// NewPairCache 创建一个新的 PairCache
+func NewPairCache() *PairCache {
+	return &PairCache{
+		TriangleMap:     make(map[int64]Triangle),
+		PairTriangleMap: make(map[string]*Set),
+	}
+}
+
+// AddTriangle 向 TriangleMap 添加一个 Triangle
+func (pc *PairCache) AddTriangle(id int64, triangle Triangle) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.TriangleMap[id] = triangle
+}
+
+// AddPairTriangle 向 PairTriangleMap 添加一个元素
+func (pc *PairCache) AddPairTriangle(pair string, id int64) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	// 如果 key 不存在，则创建一个新的 Set
+	if _, exists := pc.PairTriangleMap[pair]; !exists {
+		pc.PairTriangleMap[pair] = NewSet()
+	}
+
+	// 添加元素到 Set 中
+	pc.PairTriangleMap[pair].Add(id)
+}
+
+// GetTriangle 安全地从 TriangleMap 中获取 Triangle
+func (pc *PairCache) GetTriangle(id int64) Triangle {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.TriangleMap[id]
+}
+
+// GetPairSet 安全地从 PairTriangleMap 中获取 Set
+func (pc *PairCache) GetPairSet(pair string) *Set {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.PairTriangleMap[pair]
+}
+
+// TriangleMapSize 返回 TriangleMap 中的元素数量
+func (pc *PairCache) TriangleMapSize() int {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return len(pc.TriangleMap)
+}
+
+// PairTriangleMapSize 返回 PairTriangleMap 中指定 key 的 Set 的元素数量
+func (pc *PairCache) PairTriangleMapSize() int {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return len(pc.PairTriangleMap)
 }
 
 // Set 实现一个set
-type Set map[int64]struct{}
-
-// Add 添加元素
-func (s Set) Add(value int64) {
-	s[value] = struct{}{}
+type Set struct {
+	mu sync.RWMutex
+	m  map[int64]struct{}
 }
 
-// Remove 删除元素
-func (s Set) Remove(value int64) {
-	delete(s, value)
+// NewSet 创建一个新的线程安全的 Set
+func NewSet() *Set {
+	return &Set{
+		m: make(map[int64]struct{}),
+	}
 }
 
-// Contains 检查元素是否存在
-func (s Set) Contains(value int64) bool {
-	_, exists := s[value]
-	return exists
+// Add 添加一个元素到 Set 中
+func (s *Set) Add(item int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[item] = struct{}{}
+}
+
+// Size 返回 Set 中元素的数量
+func (s *Set) Size() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.m)
+}
+
+// Iterate 遍历 Set 中的所有元素
+func (s *Set) Iterate() []int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 将元素复制到一个切片中返回
+	items := make([]int64, 0, len(s.m))
+	for item := range s.m {
+		items = append(items, item)
+	}
+	return items
 }
 
 // String 方法
 func (s Set) String() string {
-	var pairs []string
-	for k, _ := range s {
-		pairs = append(pairs, fmt.Sprintf("%d", k))
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var triangleIdSet []string
+	for k, _ := range s.m {
+		triangleIdSet = append(triangleIdSet, fmt.Sprintf("%d", k))
 	}
-	return fmt.Sprintf("[%s] (length: %d)", strings.Join(pairs, ", "), len(pairs))
+	return fmt.Sprintf("[%s] (length: %d)", strings.Join(triangleIdSet, ", "), len(triangleIdSet))
 }
