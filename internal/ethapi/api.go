@@ -1253,57 +1253,6 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	return result, nil
 }
 
-func flagDoCall(ctx context.Context, b Backend, args TransactionArgs, state *state.StateDB, header *types.Header, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
-	if err := overrides.Apply(state); err != nil {
-		return nil, err
-	}
-	// Setup context so it may be cancelled the call has completed
-	// or, in case of unmetered gas, setup a context with a timeout.
-	var cancel context.CancelFunc
-	if timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-	// Make sure the context is cancelled when the call has completed
-	// this makes sure resources are cleaned up.
-	defer cancel()
-
-	// Get a new instance of the EVM.
-	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, b), nil)
-	if blockOverrides != nil {
-		blockOverrides.Apply(&blockCtx)
-	}
-	msg, err := args.ToMessage(globalGasCap, blockCtx.BaseFee)
-	if err != nil {
-		return nil, err
-	}
-	evm := b.GetFlagEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx, 1)
-
-	// Wait for the context to be done and cancel the evm. Even if the
-	// EVM has finished, cancelling may be done (repeatedly)
-	gopool.Submit(func() {
-		<-ctx.Done()
-		evm.Cancel()
-	})
-
-	// Execute the message.
-	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessage(evm, msg, gp)
-	if err := state.Error(); err != nil {
-		return nil, err
-	}
-
-	// If the timer caused an abort, return an appropriate error message
-	if evm.Cancelled() {
-		return nil, fmt.Errorf("execution aborted (timeout = %v)", timeout)
-	}
-	if err != nil {
-		return result, fmt.Errorf("err: %w (supplied gas %d)", err, msg.GasLimit)
-	}
-	return result, nil
-}
-
 func pairDoCall(backend Backend, msg *core.Message, timeout time.Duration, gp *core.GasPool) (*core.ExecutionResult, error) {
 	// 设置上下文，用于控制方法执行超时时间
 	ctx := context.Background()
@@ -1551,8 +1500,9 @@ func FlagDoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrH
 	if state == nil || err != nil {
 		return nil, err
 	}
+	state.Flag = 1
 
-	return flagDoCall(ctx, b, args, state, header, overrides, blockOverrides, timeout, globalGasCap)
+	return doCall(ctx, b, args, state, header, overrides, blockOverrides, timeout, globalGasCap)
 }
 
 // Call executes the given transaction on the state for the given block number.

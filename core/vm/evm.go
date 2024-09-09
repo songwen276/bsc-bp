@@ -177,36 +177,6 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 	return evm
 }
 
-func NewFlagEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, flag int8) *EVM {
-	// If basefee tracking is disabled (eth_call, eth_estimateGas, etc), and no
-	// gas prices were specified, lower the basefee to 0 to avoid breaking EVM
-	// invariants (basefee < feecap)
-	if config.NoBaseFee {
-		if txCtx.GasPrice.BitLen() == 0 {
-			blockCtx.BaseFee = new(big.Int)
-		}
-		if txCtx.BlobFeeCap != nil && txCtx.BlobFeeCap.BitLen() == 0 {
-			blockCtx.BlobBaseFee = new(big.Int)
-		}
-	}
-
-	evm := EvmPool.Get().(*EVM)
-	evm.Context = blockCtx
-	evm.TxContext = txCtx
-	evm.StateDB = statedb
-	evm.Config = config
-	evm.chainConfig = chainConfig
-	evm.chainRules = chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time)
-	evm.abort.Store(false)
-	evm.callGasTemp = 0
-	evm.depth = 0
-
-	evm.interpreter = NewEVMInterpreter(evm)
-	evm.interpreter.Flag = flag
-
-	return evm
-}
-
 // Reset resets the EVM with a new transaction context.Reset
 // This is not threadsafe and should only be done very cautiously.
 func (evm *EVM) Reset(txCtx TxContext, statedb StateDB) {

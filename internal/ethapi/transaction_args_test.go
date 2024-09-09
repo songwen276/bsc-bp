@@ -377,9 +377,6 @@ func (b *backendMock) GetTd(ctx context.Context, hash common.Hash) *big.Int { re
 func (b *backendMock) GetEVM(ctx context.Context, msg *core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext) *vm.EVM {
 	return nil
 }
-func (b *backendMock) GetFlagEVM(ctx context.Context, msg *core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext, flag int8) *vm.EVM {
-	return nil
-}
 func (b *backendMock) GetPairEVM(ctx context.Context, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext) *vm.EVM {
 	return nil
 }

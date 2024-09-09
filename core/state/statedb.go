@@ -159,6 +159,8 @@ type StateDB struct {
 
 	// Testing hooks
 	onCommit func(states *triestate.Set) // Hook invoked when commit is performed
+
+	Flag int8
 }
 
 // NewWithSharedPool creates a new state with sharedStorge on layer 1.5
@@ -425,22 +427,9 @@ func (s *StateDB) Empty(addr common.Address) bool {
 	return so == nil || so.empty()
 }
 
-func (s *StateDB) EmptyFromCache(addr common.Address) bool {
-	so := s.getStateObjectFromCache(addr)
-	return so == nil || so.empty()
-}
-
 // GetBalance retrieves the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *uint256.Int {
 	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.Balance()
-	}
-	return common.U2560
-}
-
-func (s *StateDB) GetBalanceFromCache(addr common.Address) *uint256.Int {
-	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
 		return stateObject.Balance()
 	}
@@ -480,14 +469,6 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 	return nil
 }
 
-func (s *StateDB) GetCodeFromCache(addr common.Address) []byte {
-	stateObject := s.getStateObjectFromCache(addr)
-	if stateObject != nil {
-		return stateObject.Code()
-	}
-	return nil
-}
-
 func (s *StateDB) GetRoot(addr common.Address) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -504,24 +485,8 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 	return 0
 }
 
-func (s *StateDB) GetCodeSizeFromCache(addr common.Address) int {
-	stateObject := s.getStateObjectFromCache(addr)
-	if stateObject != nil {
-		return stateObject.CodeSize()
-	}
-	return 0
-}
-
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return common.BytesToHash(stateObject.CodeHash())
-	}
-	return common.Hash{}
-}
-
-func (s *StateDB) GetCodeHashFromCache(addr common.Address) common.Hash {
-	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
 		return common.BytesToHash(stateObject.CodeHash())
 	}
@@ -531,14 +496,6 @@ func (s *StateDB) GetCodeHashFromCache(addr common.Address) common.Hash {
 // GetState retrieves a value from the given account's storage trie.
 func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.GetState(hash)
-	}
-	return common.Hash{}
-}
-
-func (s *StateDB) GetStateFromCache(addr common.Address, hash common.Hash) common.Hash {
-	stateObject := s.getStateObjectFromCache(addr)
 	if stateObject != nil {
 		return stateObject.GetState(hash)
 	}
@@ -766,10 +723,24 @@ func (s *StateDB) getStateObjectFromCache(addr common.Address) *stateObject {
 // destructed object instead of wiping all knowledge about the state object.
 func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// Prefer live objects if any is available
+	// 首先查看StateDB自己本身是否有缓存
 	if obj := s.stateObjects[addr]; obj != nil {
 		return obj
 	}
+
+	// StateDB自己本身无缓存时，在从公共的缓存中获取，如果存在则将其复制成新的实例更新到StateDB中
+	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
+	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	if s.Flag == 1 {
+		if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
+			object := stateObjectCache.(*stateObject).deepCopy(s)
+			s.setStateObject(object)
+			return object
+		}
+	}
+
 	// If no live objects are available, attempt to use snapshots
+	// 如果StateDB自己本身无缓存，公共缓存也没有再从snapshot和磁盘中获取，获取后除了要更新到StateDB，还要将其添加到公共缓存中
 	var data *types.StateAccount
 	if s.snap != nil {
 		start := time.Now()
@@ -823,6 +794,9 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// Insert into the live set
 	obj := newObject(s, addr, data)
 	s.setStateObject(obj)
+	if s.Flag == 1 {
+		stateObjectCacheMap.Store(addr, obj)
+	}
 	return obj
 }
 
@@ -1888,6 +1862,13 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 			}
 		}
 	}
+	// 统计元素个数
+	count := 0
+	stateObjectCacheMap.Range(func(key, value any) bool {
+		count++
+		return true // 继续遍历
+	})
+	fmt.Printf("stateObjectCacheMap 中的元素个数: %d\n", count)
 
 	// Clear all internal flags at the end of commit operation.
 	s.accounts = make(map[common.Hash][]byte)

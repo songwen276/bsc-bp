@@ -262,11 +262,7 @@ func opAddress(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 func opBalance(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	slot := scope.Stack.peek()
 	address := common.Address(slot.Bytes20())
-	if interpreter.Flag == 1 {
-		slot.Set(interpreter.evm.StateDB.GetBalanceFromCache(address))
-	} else {
-		slot.Set(interpreter.evm.StateDB.GetBalance(address))
-	}
+	slot.Set(interpreter.evm.StateDB.GetBalance(address))
 	return nil, nil
 }
 
@@ -348,11 +344,7 @@ func opReturnDataCopy(pc *uint64, interpreter *EVMInterpreter, scope *ScopeConte
 
 func opExtCodeSize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	slot := scope.Stack.peek()
-	if interpreter.Flag == 1 {
-		slot.SetUint64(uint64(interpreter.evm.StateDB.GetCodeSizeFromCache(slot.Bytes20())))
-	} else {
-		slot.SetUint64(uint64(interpreter.evm.StateDB.GetCodeSize(slot.Bytes20())))
-	}
+	slot.SetUint64(uint64(interpreter.evm.StateDB.GetCodeSize(slot.Bytes20())))
 	return nil, nil
 }
 
@@ -391,11 +383,7 @@ func opExtCodeCopy(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 	}
 	addr := common.Address(a.Bytes20())
 	var codeCopy []byte
-	if interpreter.Flag == 1 {
-		codeCopy = getData(interpreter.evm.StateDB.GetCodeFromCache(addr), uint64CodeOffset, length.Uint64())
-	} else {
-		codeCopy = getData(interpreter.evm.StateDB.GetCode(addr), uint64CodeOffset, length.Uint64())
-	}
+	codeCopy = getData(interpreter.evm.StateDB.GetCode(addr), uint64CodeOffset, length.Uint64())
 	scope.Memory.Set(memOffset.Uint64(), length.Uint64(), codeCopy)
 
 	return nil, nil
@@ -430,18 +418,10 @@ func opExtCodeCopy(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 func opExtCodeHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	slot := scope.Stack.peek()
 	address := common.Address(slot.Bytes20())
-	if interpreter.Flag == 1 {
-		if interpreter.evm.StateDB.EmptyFromCache(address) {
-			slot.Clear()
-		} else {
-			slot.SetBytes(interpreter.evm.StateDB.GetCodeHashFromCache(address).Bytes())
-		}
+	if interpreter.evm.StateDB.Empty(address) {
+		slot.Clear()
 	} else {
-		if interpreter.evm.StateDB.Empty(address) {
-			slot.Clear()
-		} else {
-			slot.SetBytes(interpreter.evm.StateDB.GetCodeHash(address).Bytes())
-		}
+		slot.SetBytes(interpreter.evm.StateDB.GetCodeHash(address).Bytes())
 	}
 	return nil, nil
 }
@@ -536,11 +516,7 @@ func opSload(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 	loc := scope.Stack.peek()
 	hash := common.Hash(loc.Bytes32())
 	var val common.Hash
-	if interpreter.Flag == 1 {
-		val = interpreter.evm.StateDB.GetStateFromCache(scope.Contract.Address(), hash)
-	} else {
-		val = interpreter.evm.StateDB.GetState(scope.Contract.Address(), hash)
-	}
+	val = interpreter.evm.StateDB.GetState(scope.Contract.Address(), hash)
 	loc.SetBytes(val.Bytes())
 	return nil, nil
 }

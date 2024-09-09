@@ -597,9 +597,6 @@ func (b testBackend) GetEVM(ctx context.Context, msg *core.Message, state *state
 	}
 	return vm.NewEVM(context, txContext, state, b.chain.Config(), *vmConfig)
 }
-func (b *testBackend) GetFlagEVM(ctx context.Context, msg *core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext, flag int8) *vm.EVM {
-	return nil
-}
 func (b testBackend) GetPairEVM(ctx context.Context, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockContext *vm.BlockContext) *vm.EVM {
 	return nil
 }

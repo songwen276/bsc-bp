@@ -49,9 +49,8 @@ type dummyStatedb struct {
 	state.StateDB
 }
 
-func (*dummyStatedb) GetRefund() uint64                                    { return 1337 }
-func (*dummyStatedb) GetBalance(addr common.Address) *uint256.Int          { return new(uint256.Int) }
-func (*dummyStatedb) GetBalanceFromCache(addr common.Address) *uint256.Int { return new(uint256.Int) }
+func (*dummyStatedb) GetRefund() uint64                           { return 1337 }
+func (*dummyStatedb) GetBalance(addr common.Address) *uint256.Int { return new(uint256.Int) }
 
 type vmContext struct {
 	blockCtx vm.BlockContext
