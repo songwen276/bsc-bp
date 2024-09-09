@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
+	"github.com/ulule/deepcopier"
 	"runtime"
 	"sort"
 	"sync"
@@ -710,13 +711,6 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 	return nil
 }
 
-func (s *StateDB) getStateObjectFromCache(addr common.Address) *stateObject {
-	if obj := s.getDeletedStateObjectFromCache(addr); obj != nil && !obj.deleted {
-		return obj
-	}
-	return nil
-}
-
 // getDeletedStateObject is similar to getStateObject, but instead of returning
 // nil for a deleted state object, it returns the actual object with the deleted
 // flag set. This is needed by the state journal to revert to the correct s-
@@ -733,7 +727,8 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
 		if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-			object := stateObjectCache.(*stateObject).deepCopy(s)
+			object := &stateObject{}
+			deepcopier.Copy(stateObjectCache.(*stateObject)).To(object)
 			s.setStateObject(object)
 			return object
 		}
@@ -797,81 +792,6 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	if s.Flag == 1 {
 		stateObjectCacheMap.Store(addr, obj)
 	}
-	return obj
-}
-
-func (s *StateDB) getDeletedStateObjectFromCache(addr common.Address) *stateObject {
-	// Prefer live objects if any is available
-	// 首先查看StateDB自己本身是否有缓存
-	if obj := s.stateObjects[addr]; obj != nil {
-		return obj
-	}
-
-	// StateDB自己本身无缓存时，在从公共的缓存中获取，如果存在则将其复制成新的实例更新到StateDB中
-	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-		object := stateObjectCache.(*stateObject).deepCopy(s)
-		s.setStateObject(object)
-		return object
-	}
-
-	// If no live objects are available, attempt to use snapshots
-	// 如果StateDB自己本身无缓存，公共缓存也没有再从snapshot和磁盘中获取，获取后除了要更新到StateDB，还要将其添加到公共缓存中
-	var data *types.StateAccount
-	if s.snap != nil {
-		start := time.Now()
-		acc, err := s.snap.Account(crypto.HashData(s.hasher, addr.Bytes()))
-		if metrics.EnabledExpensive {
-			s.SnapshotAccountReads += time.Since(start)
-		}
-		if err == nil {
-			if acc == nil {
-				return nil
-			}
-			data = &types.StateAccount{
-				Nonce:    acc.Nonce,
-				Balance:  acc.Balance,
-				CodeHash: acc.CodeHash,
-				Root:     common.BytesToHash(acc.Root),
-			}
-			if len(data.CodeHash) == 0 {
-				data.CodeHash = types.EmptyCodeHash.Bytes()
-			}
-			if data.Root == (common.Hash{}) {
-				data.Root = types.EmptyRootHash
-			}
-		}
-	}
-
-	// If snapshot unavailable or reading from it failed, load from the database
-	if data == nil {
-		if s.trie == nil {
-			tr, err := s.db.OpenTrie(s.originalRoot)
-			if err != nil {
-				s.setError(errors.New("failed to open trie tree"))
-				return nil
-			}
-			s.trie = tr
-		}
-		start := time.Now()
-		var err error
-		data, err = s.trie.GetAccount(addr)
-		if metrics.EnabledExpensive {
-			s.AccountReads += time.Since(start)
-		}
-		if err != nil {
-			s.setError(fmt.Errorf("getDeleteStateObject (%x) error: %w", addr.Bytes(), err))
-			return nil
-		}
-		if data == nil {
-			return nil
-		}
-	}
-	// Insert into the live set
-	obj := newObject(s, addr, data)
-	s.setStateObject(obj)
-	stateObjectCacheMap.Store(addr, obj)
 	return obj
 }
 

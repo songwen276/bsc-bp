@@ -77,6 +77,7 @@ require (
 	github.com/tendermint/tendermint v0.31.15
 	github.com/tidwall/wal v1.1.7
 	github.com/tyler-smith/go-bip39 v1.1.0
+	github.com/ulule/deepcopier v0.0.0-20200430083143-45decc6639b6
 	github.com/urfave/cli/v2 v2.26.0
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.1.3
 	github.com/willf/bitset v1.1.3

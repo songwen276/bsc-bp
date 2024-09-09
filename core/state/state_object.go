@@ -55,46 +55,6 @@ func (s Storage) Copy() Storage {
 	return cpy
 }
 
-// SafeStorage 是对 Storage 的一个包装，包含了一个锁来保护并发访问
-type SafeStorage struct {
-	mu      sync.RWMutex
-	storage Storage
-}
-
-// NewSafeStorage 创建一个新的 SafeStorage 实例
-func NewSafeStorage(storage Storage) *SafeStorage {
-	return &SafeStorage{
-		storage: storage,
-	}
-}
-
-// Get 安全地获取 Storage 中的一个值
-func (s *SafeStorage) Get(key common.Hash) (common.Hash, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	value, ok := s.storage[key]
-	return value, ok
-}
-
-// Set 安全地设置 Storage 中的一个值
-func (s *SafeStorage) Set(key common.Hash, value common.Hash) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.storage[key] = value
-}
-
-// DeepCopy 创建 Storage 的深拷贝
-func (s *SafeStorage) DeepCopy() Storage {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	// 创建一个新的 map，并拷贝现有的所有键值对
-	newStorage := make(Storage, len(s.storage))
-	for k, v := range s.storage {
-		newStorage[k] = v
-	}
-	return newStorage
-}
-
 // StateObject represents an Ethereum account which is being modified.
 //
 // The usage pattern is as follows:
@@ -565,28 +525,6 @@ func (s *stateObject) deepCopy(db *StateDB) *stateObject {
 	obj.dirtyStorage = s.dirtyStorage.Copy()
 	obj.originStorage = s.originStorage.Copy()
 	obj.pendingStorage = s.pendingStorage.Copy()
-	obj.selfDestructed = s.selfDestructed
-	obj.dirtyCode = s.dirtyCode
-	obj.deleted = s.deleted
-	return obj
-}
-
-func (s *stateObject) deepCopyFromCache(db *StateDB) *stateObject {
-	obj := &stateObject{
-		db:       db,
-		address:  s.address,
-		addrHash: s.addrHash,
-		origin:   s.origin,
-		data:     s.data,
-	}
-	if s.trie != nil {
-		obj.trie = db.db.CopyTrie(s.trie)
-	}
-	obj.code = s.code
-
-	obj.dirtyStorage = NewSafeStorage(s.dirtyStorage).DeepCopy()
-	obj.originStorage = NewSafeStorage(s.originStorage).DeepCopy()
-	obj.pendingStorage = NewSafeStorage(s.pendingStorage).DeepCopy()
 	obj.selfDestructed = s.selfDestructed
 	obj.dirtyCode = s.dirtyCode
 	obj.deleted = s.deleted
