@@ -73,17 +73,25 @@ func (pc *PairCache) AddPairTriangle(pair string, id int64) {
 }
 
 // GetTriangle 安全地从 TriangleMap 中获取 Triangle
-func (pc *PairCache) GetTriangle(id int64) Triangle {
+func (pc *PairCache) GetTriangle(id int64) (Triangle, bool) {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
-	return pc.TriangleMap[id]
+	if triangle, exists := pc.TriangleMap[id]; exists {
+		return triangle, true
+	} else {
+		return triangle, false
+	}
 }
 
 // GetPairSet 安全地从 PairTriangleMap 中获取 Set
 func (pc *PairCache) GetPairSet(pair string) *Set {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
-	return pc.PairTriangleMap[pair]
+	set, exists := pc.PairTriangleMap[pair]
+	if !exists || set == nil {
+		return nil
+	}
+	return set
 }
 
 // TriangleMapSize 返回 TriangleMap 中的元素数量
