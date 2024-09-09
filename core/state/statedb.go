@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
-	"github.com/ulule/deepcopier"
 	"runtime"
 	"sort"
 	"sync"
@@ -727,8 +726,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
 		if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-			object := &stateObject{}
-			deepcopier.Copy(stateObjectCache.(*stateObject)).To(object)
+			object := newObject(s, addr, stateObjectCache.(*stateObject).origin)
 			s.setStateObject(object)
 			return object
 		}
