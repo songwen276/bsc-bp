@@ -87,11 +87,10 @@ func (pc *PairCache) GetTriangle(id int64) (Triangle, bool) {
 func (pc *PairCache) GetPairSet(pair string) *Set {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
-	set, exists := pc.PairTriangleMap[pair]
-	if !exists || set == nil {
-		return nil
+	if set, exists := pc.PairTriangleMap[pair]; exists {
+		return set
 	}
-	return set
+	return nil
 }
 
 // TriangleMapSize 返回 TriangleMap 中的元素数量
