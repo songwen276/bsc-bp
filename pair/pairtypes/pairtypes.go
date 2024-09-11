@@ -74,7 +74,7 @@ func (pc *PairCache) GetTriangle(id int64) (Triangle, bool) {
 	if triangle, exists := pc.TriangleMap.Get(strconv.FormatInt(id, 10)); exists {
 		return triangle.(Triangle), true
 	} else {
-		return triangle.(Triangle), false
+		return Triangle{}, false
 	}
 }
 
