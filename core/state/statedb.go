@@ -725,8 +725,8 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
-		if stateObjectCache, ok := stateObjectCacheMap.Load(addr); ok {
-			objCache := stateObjectCache.(*stateObject)
+		if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
+			objCache := objectCache.(*stateObjectCache)
 			object := newObject(s, addr, objCache.origin)
 			object.code = objCache.code
 			s.setStateObject(object)
@@ -791,7 +791,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	s.setStateObject(obj)
 	if s.Flag == 1 {
 		obj.Code()
-		stateObjectCacheMap.Store(addr, obj)
+		stateObjectCacheMap.Set(addr.Hex(), newObjectCache(obj.origin, obj.code))
 	}
 	return obj
 }
@@ -1778,18 +1778,13 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			if _, loaded := stateObjectCacheMap.Load(addr); loaded {
-				stateObjectCacheMap.Store(addr, obj)
+			if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
+				stateObjectCacheMap.Set(addr.Hex(), newObjectCache(obj.origin, obj.code))
 			}
 		}
 	}
 	// 统计元素个数
-	count := 0
-	stateObjectCacheMap.Range(func(key, value any) bool {
-		count++
-		return true // 继续遍历
-	})
-	fmt.Printf("stateObjectCacheMap 中的元素个数: %d\n", count)
+	fmt.Printf("stateObjectCacheMap 中的元素个数: %d\n", stateObjectCacheMap.Count())
 
 	// Clear all internal flags at the end of commit operation.
 	s.accounts = make(map[common.Hash][]byte)

@@ -11,14 +11,14 @@ import (
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/jmoiron/sqlx"
+	"github.com/orcaman/concurrent-map"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
-var stateObjectCacheMap = new(sync.Map)
+var stateObjectCacheMap = cmap.New()
 
 var pairCache = pairtypes.NewPairCache()
 
@@ -70,7 +70,7 @@ func GetPairControl() *pairtypes.PairCache {
 	return pairCache
 }
 
-func GetStateObjectCacheMap() *sync.Map {
+func GetStateObjectCacheMap() cmap.ConcurrentMap {
 	return stateObjectCacheMap
 }
 

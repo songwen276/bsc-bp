@@ -17,10 +17,12 @@
 package vm
 
 import (
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 	"math/big"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -207,6 +209,8 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
 	// 默认evm.depth=0直接跳过
+	callRunNow1 := time.Now()
+	log.Info("callRunNow1", "starttime", callRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -262,7 +266,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
+	log.Info("callRunNow1", "starttime", callRunNow1.UnixNano(), "runtime", time.Since(callRunNow1))
 
+	callRunNow2 := time.Now()
+	log.Info("callRunNow2", "starttime", callRunNow2.UnixNano())
 	if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
@@ -278,12 +285,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// 新建合约
 			contract := NewContract(caller, AccountRef(addrCopy), value, gas)
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
-			// interRunNow := time.Now()
 			ret, err = evm.interpreter.Run(contract, input, false)
-			// log.Info("runNow", "runtime", time.Since(interRunNow))
 			gas = contract.Gas
 		}
 	}
+	log.Info("callRunNow2", "starttime", callRunNow2.UnixNano(), "runtime", time.Since(callRunNow2))
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
@@ -356,6 +362,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 // code with the caller as context and the caller is set to the caller of the caller.
 func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
+	deleRunNow1 := time.Now()
+	log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -372,8 +380,11 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
+	log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano(), "runtime", time.Since(deleRunNow1))
 
 	// It is allowed to call precompiles, even via delegatecall
+	deleRunNow2 := time.Now()
+	log.Info("deleRunNow2", "starttime", deleRunNow2.UnixNano())
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
@@ -384,6 +395,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		ret, err = evm.interpreter.Run(contract, input, false)
 		gas = contract.Gas
 	}
+	log.Info("deleRunNow2", "starttime", deleRunNow2.UnixNano(), "runtime", time.Since(deleRunNow2))
 	if err != nil {
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != ErrExecutionReverted {
@@ -399,6 +411,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // instead of performing the modifications.
 func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
+	staticRunNow1 := time.Now()
+	log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -422,7 +436,10 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
+	log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano(), "runtime", time.Since(staticRunNow1))
 
+	staticRunNow2 := time.Now()
+	log.Info("staticRunNow2", "starttime", staticRunNow2.UnixNano())
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
@@ -440,6 +457,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		ret, err = evm.interpreter.Run(contract, input, true)
 		gas = contract.Gas
 	}
+	log.Info("staticRunNow2", "starttime", staticRunNow2.UnixNano(), "runtime", time.Since(staticRunNow2))
+
 	if err != nil {
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != ErrExecutionReverted {
