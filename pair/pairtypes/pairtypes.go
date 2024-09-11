@@ -3,6 +3,8 @@ package pairtypes
 import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	cmap "github.com/orcaman/concurrent-map"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -37,73 +39,60 @@ type ITriangularArbitrageTriangular struct {
 }
 
 type PairCache struct {
-	mu              sync.RWMutex
-	TriangleMap     map[int64]Triangle
-	PairTriangleMap map[string]*Set
+	TriangleMap     cmap.ConcurrentMap
+	PairTriangleMap cmap.ConcurrentMap
 	TopicMap        map[string]string
 }
 
 // NewPairCache 创建一个新的 PairCache
 func NewPairCache() *PairCache {
 	return &PairCache{
-		TriangleMap:     make(map[int64]Triangle),
-		PairTriangleMap: make(map[string]*Set),
+		TriangleMap:     cmap.New(),
+		PairTriangleMap: cmap.New(),
 	}
 }
 
 // AddTriangle 向 TriangleMap 添加一个 Triangle
 func (pc *PairCache) AddTriangle(id int64, triangle Triangle) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-	pc.TriangleMap[id] = triangle
+	pc.TriangleMap.Set(strconv.FormatInt(id, 10), triangle)
 }
 
 // AddPairTriangle 向 PairTriangleMap 添加一个元素
 func (pc *PairCache) AddPairTriangle(pair string, id int64) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
 	// 如果 key 不存在，则创建一个新的 Set
-	if _, exists := pc.PairTriangleMap[pair]; !exists {
-		pc.PairTriangleMap[pair] = NewSet()
+	if set, exists := pc.PairTriangleMap.Get(pair); exists {
+		set.(*Set).Add(id)
+	} else {
+		newSet := NewSet()
+		newSet.Add(id)
+		pc.PairTriangleMap.Set(pair, newSet)
 	}
-
-	// 添加元素到 Set 中
-	pc.PairTriangleMap[pair].Add(id)
 }
 
 // GetTriangle 安全地从 TriangleMap 中获取 Triangle
 func (pc *PairCache) GetTriangle(id int64) (Triangle, bool) {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
-	if triangle, exists := pc.TriangleMap[id]; exists {
-		return triangle, true
+	if triangle, exists := pc.TriangleMap.Get(strconv.FormatInt(id, 10)); exists {
+		return triangle.(Triangle), true
 	} else {
-		return triangle, false
+		return triangle.(Triangle), false
 	}
 }
 
 // GetPairSet 安全地从 PairTriangleMap 中获取 Set
 func (pc *PairCache) GetPairSet(pair string) *Set {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
-	if set, exists := pc.PairTriangleMap[pair]; exists {
-		return set
+	if set, exists := pc.PairTriangleMap.Get(pair); exists {
+		return set.(*Set)
 	}
 	return nil
 }
 
 // TriangleMapSize 返回 TriangleMap 中的元素数量
 func (pc *PairCache) TriangleMapSize() int {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
 	return len(pc.TriangleMap)
 }
 
 // PairTriangleMapSize 返回 PairTriangleMap 中指定 key 的 Set 的元素数量
 func (pc *PairCache) PairTriangleMapSize() int {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
 	return len(pc.PairTriangleMap)
 }
 

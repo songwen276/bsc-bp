@@ -121,7 +121,7 @@ func fetchTriangleMap() {
 	mysqlDB := mysqldb.GetMysqlDB()
 
 	// 使用流式查询，逐行处理数据
-	rows, err := mysqlDB.Queryx("SELECT id, token0, router0, pair0, token1, router1, pair1, token2, router2, pair2 FROM arbitrage_triangle")
+	rows, err := mysqlDB.Queryx("SELECT id, token0, router0, pair0, token1, router1, pair1, token2, router2, pair2 FROM arbitrage_triangle ORDER BY id")
 	if err != nil {
 		log.Error("查询失败", "err", err)
 	}
