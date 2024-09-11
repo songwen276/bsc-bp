@@ -36,12 +36,12 @@ func init() {
 	// 初始化triange到内存
 	triangleStart := time.Now()
 	fetchTriangleMap()
-	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条，加载pair共%v条\n", time.Since(triangleStart), len(pairCache.TriangleMap), len(pairCache.PairTriangleMap))
+	fmt.Printf("初次加载triange到内存中耗时：%v，共加载%v条，加载pair共%v条\n", time.Since(triangleStart), pairCache.TriangleMapSize(), pairCache.PairTriangleMapSize())
 
 	// 初始化topic到内存
 	topicStart := time.Now()
 	fetchTopicMap()
-	fmt.Printf("初次加载topic到内存中耗时：%v\n", time.Since(topicStart))
+	fmt.Printf("初次加载topic到内存中耗时：%v，共加载%v条\n", time.Since(topicStart), len(pairCache.TopicMap))
 
 	// 开启协程周期更新内存中triange与topic
 	err := gopool.Submit(timerGetTriangle)
@@ -111,7 +111,7 @@ func fetchTopicMap() {
 		log.Error("Failed to unmarshal JSON", "err", err)
 	}
 	pairCache.TopicMap = newTopicMap
-	log.Info("刷新内存中topic耗时", "time", time.Since(start))
+	log.Info("刷新内存中topic耗时", "time", time.Since(start), "topic总数", len(newTopicMap))
 }
 
 func fetchTriangleMap() {

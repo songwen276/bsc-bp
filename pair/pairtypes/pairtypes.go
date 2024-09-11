@@ -91,7 +91,7 @@ func (pc *PairCache) TriangleMapSize() int {
 	return pc.TriangleMap.Count()
 }
 
-// PairTriangleMapSize 返回 PairTriangleMap 中指定 key 的 Set 的元素数量
+// PairTriangleMapSize 返回 PairTriangleMap 中的元素数量
 func (pc *PairCache) PairTriangleMapSize() int {
 	return pc.PairTriangleMap.Count()
 }
