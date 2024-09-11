@@ -88,12 +88,12 @@ func (pc *PairCache) GetPairSet(pair string) *Set {
 
 // TriangleMapSize 返回 TriangleMap 中的元素数量
 func (pc *PairCache) TriangleMapSize() int {
-	return len(pc.TriangleMap)
+	return pc.TriangleMap.Count()
 }
 
 // PairTriangleMapSize 返回 PairTriangleMap 中指定 key 的 Set 的元素数量
 func (pc *PairCache) PairTriangleMapSize() int {
-	return len(pc.PairTriangleMap)
+	return pc.PairTriangleMap.Count()
 }
 
 // Set 实现一个set
