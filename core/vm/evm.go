@@ -20,11 +20,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"math/big"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var EvmPool = sync.Pool{
@@ -206,8 +208,8 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
 	// 默认evm.depth=0直接跳过
-	// callRunNow1 := time.Now()
-	// log.Info("callRunNow1", "starttime", callRunNow1.UnixNano())
+	callRunNow1 := time.Now()
+	log.Info("callRunNow1", "starttime", callRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -263,7 +265,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
-	// log.Info("callRunNow1", "starttime", callRunNow1.UnixNano(), "runtime", time.Since(callRunNow1))
+	log.Info("callRunNow1", "starttime", callRunNow1.UnixNano(), "runtime", time.Since(callRunNow1))
 
 	// callRunNow2 := time.Now()
 	// log.Info("callRunNow2", "starttime", callRunNow2.UnixNano())
@@ -311,6 +313,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 // code with the caller as context.
 func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
+	callCodeNow1 := time.Now()
+	log.Info("callCodeNow1", "starttime", callCodeNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -330,6 +334,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
+	log.Info("callCodeNow1", "starttime", callCodeNow1.UnixNano(), "runtime", time.Since(callCodeNow1))
 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
@@ -359,8 +364,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 // code with the caller as context and the caller is set to the caller of the caller.
 func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
-	// deleRunNow1 := time.Now()
-	// log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano())
+	deleRunNow1 := time.Now()
+	log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -377,7 +382,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
-	// log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano(), "runtime", time.Since(deleRunNow1))
+	log.Info("deleRunNow1", "starttime", deleRunNow1.UnixNano(), "runtime", time.Since(deleRunNow1))
 
 	// It is allowed to call precompiles, even via delegatecall
 	// deleRunNow2 := time.Now()
@@ -408,8 +413,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // instead of performing the modifications.
 func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
-	// staticRunNow1 := time.Now()
-	// log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano())
+	staticRunNow1 := time.Now()
+	log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano())
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -433,7 +438,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
-	// log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano(), "runtime", time.Since(staticRunNow1))
+	log.Info("staticRunNow1", "starttime", staticRunNow1.UnixNano(), "runtime", time.Since(staticRunNow1))
 
 	// staticRunNow2 := time.Now()
 	// log.Info("staticRunNow2", "starttime", staticRunNow2.UnixNano())
