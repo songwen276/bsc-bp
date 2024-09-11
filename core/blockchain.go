@@ -2376,28 +2376,26 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		// var triangles []pairtypes.Triangle
 		var trianglesData [][]byte
 		for _, triangleIdSet := range pairAddrMap {
-			if triangleIdSet != nil {
-				for _, triangleId := range triangleIdSet.Iterate() {
-					if triangle, exists := pairCache.GetTriangle(triangleId); exists {
-						triangular := pairtypes.ITriangularArbitrageTriangular{
-							Token0:  common.HexToAddress(triangle.Token0),
-							Router0: common.HexToAddress(triangle.Router0),
-							Pair0:   common.HexToAddress(triangle.Pair0),
-							Token1:  common.HexToAddress(triangle.Token1),
-							Router1: common.HexToAddress(triangle.Router1),
-							Pair1:   common.HexToAddress(triangle.Pair1),
-							Token2:  common.HexToAddress(triangle.Token2),
-							Router2: common.HexToAddress(triangle.Router2),
-							Pair2:   common.HexToAddress(triangle.Pair2),
-						}
-
-						data, err := pair.Encoder("arbitrageQuery", triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
-						if err != nil {
-							log.Error("编码triangles数据失败", "err", err)
-						}
-						// triangles = append(triangles, triangle)
-						trianglesData = append(trianglesData, data)
+			for _, triangleId := range triangleIdSet.GetData().Keys() {
+				if triangle, exists := pairCache.GetTriangle(triangleId); exists {
+					triangular := pairtypes.ITriangularArbitrageTriangular{
+						Token0:  common.HexToAddress(triangle.Token0),
+						Router0: common.HexToAddress(triangle.Router0),
+						Pair0:   common.HexToAddress(triangle.Pair0),
+						Token1:  common.HexToAddress(triangle.Token1),
+						Router1: common.HexToAddress(triangle.Router1),
+						Pair1:   common.HexToAddress(triangle.Pair1),
+						Token2:  common.HexToAddress(triangle.Token2),
+						Router2: common.HexToAddress(triangle.Router2),
+						Pair2:   common.HexToAddress(triangle.Pair2),
 					}
+
+					data, err := pair.Encoder("arbitrageQuery", triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
+					if err != nil {
+						log.Error("编码triangles数据失败", "err", err)
+					}
+					// triangles = append(triangles, triangle)
+					trianglesData = append(trianglesData, data)
 				}
 			}
 		}

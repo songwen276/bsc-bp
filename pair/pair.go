@@ -142,10 +142,11 @@ func fetchTriangleMap() {
 		triangle.Pair0 = common.HexToAddress(triangle.Pair0).Hex()
 		triangle.Pair1 = common.HexToAddress(triangle.Pair1).Hex()
 		triangle.Pair2 = common.HexToAddress(triangle.Pair2).Hex()
-		pairCache.AddTriangle(triangle.ID, triangle)
-		pairCache.AddPairTriangle(triangle.Pair0, triangle.ID)
-		pairCache.AddPairTriangle(triangle.Pair1, triangle.ID)
-		pairCache.AddPairTriangle(triangle.Pair2, triangle.ID)
+		id := strconv.FormatInt(triangle.ID, 10)
+		pairCache.AddTriangle(id, triangle)
+		pairCache.AddPairTriangle(triangle.Pair0, id)
+		pairCache.AddPairTriangle(triangle.Pair1, id)
+		pairCache.AddPairTriangle(triangle.Pair2, id)
 	}
 
 	// 检查是否有遍历中的错误
