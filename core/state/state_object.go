@@ -93,15 +93,6 @@ type stateObject struct {
 	created bool
 }
 
-type stateObjectCache struct {
-	origin *types.StateAccount // Account original data without any change applied, nil means it was not existent
-	code   Code                // contract bytecode, which gets set when code is loaded
-}
-
-func newObjectCache(acct *types.StateAccount, code Code) *stateObjectCache {
-	return &stateObjectCache{origin: acct, code: code}
-}
-
 // empty returns whether the account is considered empty.
 func (s *stateObject) empty() bool {
 	return s.data.Nonce == 0 && s.data.Balance.IsZero() && bytes.Equal(s.data.CodeHash, types.EmptyCodeHash.Bytes())

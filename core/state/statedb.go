@@ -726,7 +726,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
 		if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
-			objCache := objectCache.(*stateObjectCache)
+			objCache := objectCache.(*stateObject)
 			object := newObject(s, addr, objCache.origin)
 			object.code = objCache.code
 			s.setStateObject(object)
@@ -791,7 +791,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	s.setStateObject(obj)
 	if s.Flag == 1 {
 		obj.Code()
-		stateObjectCacheMap.Set(addr.Hex(), newObjectCache(obj.origin, obj.code))
+		stateObjectCacheMap.Set(addr.Hex(), obj)
 	}
 	return obj
 }
@@ -805,6 +805,10 @@ func (s *StateDB) getOrNewStateObject(addr common.Address) *stateObject {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
 		stateObject, _ = s.createObject(addr)
+		if s.Flag == 1 {
+			stateObjectCacheMap := pair.GetStateObjectCacheMap()
+			stateObjectCacheMap.Set(addr.Hex(), stateObject)
+		}
 	}
 	return stateObject
 }
@@ -1779,7 +1783,7 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
-				stateObjectCacheMap.Set(addr.Hex(), newObjectCache(obj.origin, obj.code))
+				stateObjectCacheMap.Set(addr.Hex(), obj)
 			}
 		}
 	}
