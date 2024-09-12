@@ -20,13 +20,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"math/big"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 var EvmPool = sync.Pool{
@@ -208,7 +206,6 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
 	// 默认evm.depth=0直接跳过
-	callRunNow1 := time.Now()
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -223,7 +220,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	// 当前合约非eth原始合约，p=nil，isPrecompile=false
 	p, isPrecompile := evm.precompile(addr)
-	log.Info("callRunNow1", "runtime", time.Since(callRunNow1))
 
 	// eth_call获取evm时直接构造&vm.Config{NoBaseFee: true}传入，所以Tracer=nil
 	debug := evm.Config.Tracer != nil
@@ -265,6 +261,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
+	// callRunNow1 := time.Now()
+	// log.Info("callRunNow1", "runtime", time.Since(callRunNow1))
 
 	// callRunNow2 := time.Now()
 	// log.Info("callRunNow2", "starttime", callRunNow2.UnixNano())
@@ -360,7 +358,6 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 // code with the caller as context and the caller is set to the caller of the caller.
 func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
-	deleRunNow1 := time.Now()
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -377,7 +374,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
-	log.Info("deleRunNow1", "runtime", time.Since(deleRunNow1))
+	// deleRunNow1 := time.Now()
+	// log.Info("deleRunNow1", "runtime", time.Since(deleRunNow1))
 
 	// It is allowed to call precompiles, even via delegatecall
 	// deleRunNow2 := time.Now()
@@ -408,7 +406,6 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // instead of performing the modifications.
 func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
-	staticRunNow1 := time.Now()
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -424,7 +421,6 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// but is the correct thing to do and matters on other networks, in tests, and potential
 	// future scenarios
 	evm.StateDB.AddBalance(addr, new(uint256.Int))
-	log.Info("staticRunNow1", "runtime", time.Since(staticRunNow1))
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
 	if evm.Config.Tracer != nil {
@@ -433,6 +429,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 			evm.Config.Tracer.CaptureExit(ret, startGas-gas, err)
 		}(gas)
 	}
+	// staticRunNow1 := time.Now()
+	// log.Info("staticRunNow1", "runtime", time.Since(staticRunNow1))
 
 	// staticRunNow2 := time.Now()
 	// log.Info("staticRunNow2", "starttime", staticRunNow2.UnixNano())

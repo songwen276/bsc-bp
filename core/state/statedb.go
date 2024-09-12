@@ -717,6 +717,7 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// Prefer live objects if any is available
 	// 首先查看StateDB自己本身是否有缓存
+	// getDeletedStateNow := time.Now()
 	if obj := s.stateObjects[addr]; obj != nil {
 		return obj
 	}
@@ -730,6 +731,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 			object := newObject(s, addr, objCache.origin)
 			object.code = objCache.code
 			s.setStateObject(object)
+			// log.Info("getDeletedStateNow", "runtime", time.Since(getDeletedStateNow))
 			return object
 		}
 	}
@@ -805,10 +807,6 @@ func (s *StateDB) getOrNewStateObject(addr common.Address) *stateObject {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
 		stateObject, _ = s.createObject(addr)
-		if s.Flag == 1 {
-			stateObjectCacheMap := pair.GetStateObjectCacheMap()
-			stateObjectCacheMap.Set(addr.Hex(), stateObject)
-		}
 	}
 	return stateObject
 }
@@ -849,6 +847,10 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 		delete(s.storagesOrigin, prev.address)
 	}
 	s.setStateObject(newobj)
+	if s.Flag == 1 {
+		stateObjectCacheMap := pair.GetStateObjectCacheMap()
+		stateObjectCacheMap.Set(addr.Hex(), newobj)
+	}
 	if prev != nil && !prev.deleted {
 		return newobj, prev
 	}
