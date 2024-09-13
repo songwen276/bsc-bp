@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
+	cmap "github.com/orcaman/concurrent-map"
 	"runtime"
 	"sort"
 	"sync"
@@ -1789,6 +1790,17 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 			}
 		}
 	}
+
+	stateCacheMap := pair.GetStateCacheMap()
+	for addr, storage := range s.storages {
+		if storageCache, exists := stateCacheMap.Get(addr.Hex()); exists {
+			storageCacheMap := storageCache.(cmap.ConcurrentMap)
+			for key, value := range storage {
+				storageCacheMap.Set(key.Hex(), value)
+			}
+		}
+	}
+
 	// 统计元素个数
 	fmt.Printf("stateObjectCacheMap 中的元素个数: %d\n", stateObjectCacheMap.Count())
 

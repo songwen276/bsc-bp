@@ -19,6 +19,8 @@ package state
 import (
 	"bytes"
 	"fmt"
+	"github.com/ethereum/go-ethereum/pair"
+	cmap "github.com/orcaman/concurrent-map"
 	"io"
 	"sync"
 	"time"
@@ -213,6 +215,17 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	if value, cached := s.getOriginStorage(key); cached {
 		return value
 	}
+
+	stateCacheMap := pair.GetStateCacheMap()
+	if s.db.Flag == 1 {
+		if storageCache, exists := stateCacheMap.Get(s.address.Hex()); exists {
+			storageCacheMap := storageCache.(cmap.ConcurrentMap)
+			if value, has := storageCacheMap.Get(key.Hex()); has {
+				s.setOriginStorage(key, value.(common.Hash))
+				return value.(common.Hash)
+			}
+		}
+	}
 	// If the object was destructed in *this* block (and potentially resurrected),
 	// the storage has been cleared out, and we should *not* consult the previous
 	// database about any storage values. The only possible alternatives are:
@@ -261,6 +274,16 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		value.SetBytes(val)
 	}
 	s.setOriginStorage(key, value)
+	if s.db.Flag == 1 {
+		if storageCache, exists := stateCacheMap.Get(s.address.Hex()); exists {
+			storageCacheMap := storageCache.(cmap.ConcurrentMap)
+			storageCacheMap.Set(key.Hex(), value)
+		} else {
+			storageCacheMap := cmap.New()
+			storageCacheMap.Set(key.Hex(), value)
+			stateCacheMap.Set(s.address.Hex(), storageCacheMap)
+		}
+	}
 	return value
 }
 
