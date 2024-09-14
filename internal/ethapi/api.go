@@ -1393,18 +1393,18 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 	// 读取任务测试数据
 	log.Info("开始执行CallBatch")
-	start := time.Now()
 	datas, err := GetEthCallData()
 	if err != nil {
 		return "", err
 	}
-	getDatasSince := time.Since(start)
-	log.Info("获取所有测试数据花费时长", "runtime", getDatasSince)
+	// getDatasSince := time.Since(start)
+	// log.Info("获取所有测试数据花费时长", "runtime", getDatasSince)
 
 	// 根据任务数创建结果读取通道
 	results := make(chan interface{}, len(datas))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+	start := time.Now()
 	var wg sync.WaitGroup
 	for _, job := range datas {
 		wg.Add(1)
@@ -1442,8 +1442,8 @@ func (s *BlockChainAPI) CallBatch(ctx context.Context) (string, error) {
 		i += 1
 	}
 	totalSince := time.Since(start)
-	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
-	r := Results{GetDatasSince: getDatasSince, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
+	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince, "StateObject缓存数", pair.GetStateObjectCacheMap().Count(), "Storage缓存数", pair.GetStorageCacheMap().Count())
+	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
 	file, err := os.Create("/bc/bsc/build/bin/results.json")
