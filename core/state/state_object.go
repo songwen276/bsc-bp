@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
-	cmap "github.com/orcaman/concurrent-map"
 	"io"
 	"sync"
 	"time"
@@ -216,14 +215,13 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		return value
 	}
 
-	stateCacheMap := pair.GetStateCacheMap()
+	storageCacheMap := pair.GetStorageCacheMap()
+	hashedKey := crypto.Keccak256Hash(s.address[:], key[:]).Hex()
 	if s.db.Flag == 1 {
-		if storageCache, exists := stateCacheMap.Get(s.address.Hex()); exists {
-			storageCacheMap := storageCache.(cmap.ConcurrentMap)
-			if value, has := storageCacheMap.Get(key.Hex()); has {
-				s.setOriginStorage(key, value.(common.Hash))
-				return value.(common.Hash)
-			}
+		if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
+			storage := storageCache.(common.Hash)
+			s.setOriginStorage(key, storage)
+			return storage
 		}
 	}
 	// If the object was destructed in *this* block (and potentially resurrected),
@@ -275,14 +273,7 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	}
 	s.setOriginStorage(key, value)
 	if s.db.Flag == 1 {
-		if storageCache, exists := stateCacheMap.Get(s.address.Hex()); exists {
-			storageCacheMap := storageCache.(cmap.ConcurrentMap)
-			storageCacheMap.Set(key.Hex(), value)
-		} else {
-			storageCacheMap := cmap.New()
-			storageCacheMap.Set(key.Hex(), value)
-			stateCacheMap.Set(s.address.Hex(), storageCacheMap)
-		}
+		storageCacheMap.Set(hashedKey, value)
 	}
 	return value
 }

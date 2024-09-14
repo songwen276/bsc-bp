@@ -20,7 +20,7 @@ import (
 
 var stateObjectCacheMap = cmap.New()
 
-var stateCacheMap = cmap.New()
+var storageCacheMap = cmap.New()
 
 var pairCache = pairtypes.NewPairCache()
 
@@ -76,8 +76,8 @@ func GetStateObjectCacheMap() cmap.ConcurrentMap {
 	return stateObjectCacheMap
 }
 
-func GetStateCacheMap() cmap.ConcurrentMap {
-	return stateCacheMap
+func GetStorageCacheMap() cmap.ConcurrentMap {
+	return storageCacheMap
 }
 
 func timerGetTriangle() {

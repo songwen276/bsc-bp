@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
-	cmap "github.com/orcaman/concurrent-map"
 	"runtime"
 	"sort"
 	"sync"
@@ -1791,18 +1790,19 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 		}
 	}
 
-	stateCacheMap := pair.GetStateCacheMap()
+	storageCacheMap := pair.GetStorageCacheMap()
 	for addr, storage := range s.storages {
-		if storageCache, exists := stateCacheMap.Get(addr.Hex()); exists {
-			storageCacheMap := storageCache.(cmap.ConcurrentMap)
-			for key, value := range storage {
-				storageCacheMap.Set(key.Hex(), value)
+		for key, val := range storage {
+			hashedKey := crypto.Keccak256Hash(addr[:], key[:]).Hex()
+			if _, exists := storageCacheMap.Get(hashedKey); exists {
+				storageCacheMap.Set(hashedKey, val)
 			}
 		}
 	}
 
 	// 统计元素个数
-	fmt.Printf("stateObjectCacheMap 中的元素个数: %d\n", stateObjectCacheMap.Count())
+	fmt.Printf("stateObjectCacheMap中的元素个数: %d\n", stateObjectCacheMap.Count())
+	fmt.Printf("storageCacheMap中的元素个数: %d\n", storageCacheMap.Count())
 
 	// Clear all internal flags at the end of commit operation.
 	s.accounts = make(map[common.Hash][]byte)
