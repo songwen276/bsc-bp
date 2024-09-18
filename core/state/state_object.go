@@ -19,7 +19,6 @@ package state
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/pair"
 	"io"
 	"sync"
 	"time"
@@ -204,6 +203,10 @@ func (s *stateObject) setOriginStorage(key common.Hash, value common.Hash) {
 	s.originStorage[key] = value
 }
 
+var storCacheMap = make(map[string]common.Hash, 2000000)
+
+var storAddTmpMap = make(map[string]common.Hash)
+
 // GetCommittedState retrieves a value from the committed account storage trie.
 func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	// If we have a pending write or clean cached, return that
@@ -215,11 +218,16 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		return value
 	}
 
-	storageCacheMap := pair.GetStorageCacheMap()
-	hashedKey := crypto.Keccak256Hash(s.address[:], key[:]).Hex()
+	// storageCacheMap := pair.GetStorageCacheMap()
+	hashedKey := crypto.Keccak256Hash(s.addrHash[:], key[:]).Hex()
 	if s.db.Flag == 1 {
-		if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
-			storage := storageCache.(common.Hash)
+		// if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
+		// 	storage := storageCache.(common.Hash)
+		// 	s.setOriginStorage(key, storage)
+		// 	return storage
+		// }
+
+		if storage, ok := storCacheMap[hashedKey]; ok {
 			s.setOriginStorage(key, storage)
 			return storage
 		}
@@ -273,7 +281,8 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	}
 	s.setOriginStorage(key, value)
 	if s.db.Flag == 1 {
-		storageCacheMap.Set(hashedKey, value)
+		// storageCacheMap.Set(hashedKey, value)
+		storAddTmpMap[hashedKey] = value
 	}
 	return value
 }

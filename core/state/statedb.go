@@ -710,6 +710,10 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 	return nil
 }
 
+var stateObjCacheMap = make(map[common.Address]*stateObject, 100000)
+
+var stateObjAddTmpMap = make(map[common.Address]*stateObject)
+
 // getDeletedStateObject is similar to getStateObject, but instead of returning
 // nil for a deleted state object, it returns the actual object with the deleted
 // flag set. This is needed by the state journal to revert to the correct s-
@@ -724,14 +728,20 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 
 	// StateDB自己本身无缓存时，在从公共的缓存中获取，如果存在则将其复制成新的实例更新到StateDB中
 	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	// stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	if s.Flag == 1 {
-		if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
-			objCache := objectCache.(*stateObject)
+		// if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
+		// 	objCache := objectCache.(*stateObject)
+		// 	object := newObject(s, addr, objCache.origin)
+		// 	object.code = objCache.code
+		// 	s.setStateObject(object)
+		// 	return object
+		// }
+
+		if objCache, ok := stateObjCacheMap[addr]; ok {
 			object := newObject(s, addr, objCache.origin)
 			object.code = objCache.code
 			s.setStateObject(object)
-			// log.Info("getDeletedStateNow", "runtime", time.Since(getDeletedStateNow))
 			return object
 		}
 	}
@@ -793,7 +803,8 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	s.setStateObject(obj)
 	if s.Flag == 1 {
 		obj.Code()
-		stateObjectCacheMap.Set(addr.Hex(), obj)
+		// stateObjectCacheMap.Set(addr.Hex(), obj)
+		stateObjAddTmpMap[addr] = obj
 	}
 	return obj
 }
@@ -1781,28 +1792,46 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 		root = types.EmptyRootHash
 	}
 
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	// 增量添加新pair相关stateObj数据缓存，完成后清空临时map
+	for address, object := range stateObjAddTmpMap {
+		stateObjCacheMap[address] = object
+	}
+	for hashedKey, storage := range storAddTmpMap {
+		storCacheMap[hashedKey] = storage
+	}
+	stateObjAddTmpMap = make(map[common.Address]*stateObject)
+	storAddTmpMap = make(map[string]common.Hash)
+
+	// 新区块产生后更新stateObj与storage数据缓存
+	// stateObjectCacheMap := pair.GetStateObjectCacheMap()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
-				stateObjectCacheMap.Set(addr.Hex(), obj)
+			// if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
+			// 	stateObjectCacheMap.Set(addr.Hex(), obj)
+			// }
+			if _, ok := stateObjCacheMap[addr]; ok {
+				stateObjCacheMap[addr] = obj
 			}
 		}
 	}
-
-	storageCacheMap := pair.GetStorageCacheMap()
+	// storageCacheMap := pair.GetStorageCacheMap()
 	for addr, storage := range s.storages {
 		for key, val := range storage {
 			hashedKey := crypto.Keccak256Hash(addr[:], key[:]).Hex()
-			if _, exists := storageCacheMap.Get(hashedKey); exists {
-				storageCacheMap.Set(hashedKey, val)
+			// if _, exists := storageCacheMap.Get(hashedKey); exists {
+			// 	storageCacheMap.Set(hashedKey, val)
+			// }
+			if _, ok := storCacheMap[hashedKey]; ok {
+				storCacheMap[hashedKey] = common.Hash(val)
 			}
 		}
 	}
 
 	// 统计元素个数
-	fmt.Printf("stateObjectCacheMap中的元素个数: %d\n", stateObjectCacheMap.Count())
-	fmt.Printf("storageCacheMap中的元素个数: %d\n", storageCacheMap.Count())
+	// fmt.Printf("stateObjectCacheMap中的元素个数: %d\n", stateObjectCacheMap.Count())
+	// fmt.Printf("storageCacheMap中的元素个数: %d\n", storageCacheMap.Count())
+	fmt.Printf("stateObjCacheMap中的元素个数: %d\n", len(stateObjCacheMap))
+	fmt.Printf("storCacheMap中的元素个数: %d\n", len(storCacheMap))
 
 	// Clear all internal flags at the end of commit operation.
 	s.accounts = make(map[common.Hash][]byte)
