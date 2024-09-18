@@ -9,6 +9,7 @@ import (
 
 type PairAPI interface {
 	PairCallBatch(datas [][]byte) error
+	CallBatch() (string, error)
 }
 
 type Triangle struct {
