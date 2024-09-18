@@ -19,6 +19,7 @@ package state
 import (
 	"bytes"
 	"fmt"
+	cmap "github.com/orcaman/concurrent-map"
 	"io"
 	"sync"
 	"time"
@@ -205,7 +206,7 @@ func (s *stateObject) setOriginStorage(key common.Hash, value common.Hash) {
 
 var storCacheMap = make(map[string]common.Hash, 2000000)
 
-var storAddTmpMap = make(map[string]common.Hash)
+var storAddTmpMap = cmap.New()
 
 // GetCommittedState retrieves a value from the committed account storage trie.
 func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
@@ -282,7 +283,7 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	s.setOriginStorage(key, value)
 	if s.db.Flag == 1 {
 		// storageCacheMap.Set(hashedKey, value)
-		storAddTmpMap[hashedKey] = value
+		storAddTmpMap.Set(hashedKey, value)
 	}
 	return value
 }

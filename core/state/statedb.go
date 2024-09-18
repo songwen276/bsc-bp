@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
+	cmap "github.com/orcaman/concurrent-map"
 	"runtime"
 	"sort"
 	"sync"
@@ -710,9 +711,9 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 	return nil
 }
 
-var stateObjCacheMap = make(map[common.Address]*stateObject, 100000)
+var stateObjCacheMap = make(map[string]*stateObject, 100000)
 
-var stateObjAddTmpMap = make(map[common.Address]*stateObject)
+var stateObjAddTmpMap = cmap.New()
 
 // getDeletedStateObject is similar to getStateObject, but instead of returning
 // nil for a deleted state object, it returns the actual object with the deleted
@@ -738,7 +739,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		// 	return object
 		// }
 
-		if objCache, ok := stateObjCacheMap[addr]; ok {
+		if objCache, ok := stateObjCacheMap[addr.Hex()]; ok {
 			object := newObject(s, addr, objCache.origin)
 			object.code = objCache.code
 			s.setStateObject(object)
@@ -804,7 +805,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	if s.Flag == 1 {
 		obj.Code()
 		// stateObjectCacheMap.Set(addr.Hex(), obj)
-		stateObjAddTmpMap[addr] = obj
+		stateObjAddTmpMap.Set(addr.Hex(), obj)
 	}
 	return obj
 }
@@ -1793,14 +1794,14 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	}
 
 	// 增量添加新pair相关stateObj数据缓存，完成后清空临时map
-	for address, object := range stateObjAddTmpMap {
-		stateObjCacheMap[address] = object
+	for it := range stateObjAddTmpMap.IterBuffered() {
+		stateObjCacheMap[it.Key] = it.Val.(*stateObject)
 	}
-	for hashedKey, storage := range storAddTmpMap {
-		storCacheMap[hashedKey] = storage
+	for it := range storAddTmpMap.IterBuffered() {
+		storCacheMap[it.Key] = it.Val.(common.Hash)
 	}
-	stateObjAddTmpMap = make(map[common.Address]*stateObject)
-	storAddTmpMap = make(map[string]common.Hash)
+	stateObjAddTmpMap.Clear()
+	storAddTmpMap.Clear()
 
 	// 新区块产生后更新stateObj与storage数据缓存
 	// stateObjectCacheMap := pair.GetStateObjectCacheMap()
@@ -1809,8 +1810,8 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 			// if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
 			// 	stateObjectCacheMap.Set(addr.Hex(), obj)
 			// }
-			if _, ok := stateObjCacheMap[addr]; ok {
-				stateObjCacheMap[addr] = obj
+			if _, ok := stateObjCacheMap[addr.Hex()]; ok {
+				stateObjCacheMap[addr.Hex()] = obj
 			}
 		}
 	}
