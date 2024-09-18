@@ -166,7 +166,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	// so that it gets executed _after_: the capturestate needs the stacks before
 	// they are returned to the pools
 	defer func() {
-		returnMem(mem)
 		returnStack(stack)
 	}()
 	contract.Input = input

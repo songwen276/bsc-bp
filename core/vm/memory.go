@@ -18,14 +18,7 @@ package vm
 
 import (
 	"github.com/holiman/uint256"
-	"sync"
 )
-
-var memPool = sync.Pool{
-	New: func() interface{} {
-		return &Memory{store: make([]byte, 0, 4*1024)}
-	},
-}
 
 // Memory implements a simple memory model for the ethereum virtual machine.
 type Memory struct {
@@ -35,13 +28,7 @@ type Memory struct {
 
 // NewMemory returns a new memory model.
 func NewMemory() *Memory {
-	return memPool.Get().(*Memory)
-}
-
-func returnMem(m *Memory) {
-	m.lastGasCost = 0
-	m.store = m.store[:0]
-	memPool.Put(m)
+	return &Memory{}
 }
 
 // Set sets offset + size to value
