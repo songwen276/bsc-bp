@@ -19,7 +19,7 @@ package state
 import (
 	"bytes"
 	"fmt"
-	cmap "github.com/orcaman/concurrent-map"
+	"github.com/ethereum/go-ethereum/pair"
 	"io"
 	"sync"
 	"time"
@@ -204,9 +204,9 @@ func (s *stateObject) setOriginStorage(key common.Hash, value common.Hash) {
 	s.originStorage[key] = value
 }
 
-var storCacheMap = make(map[string]common.Hash, 2000000)
+// var storCacheMap = make(map[string]common.Hash, 2000000)
 
-var storAddTmpMap = cmap.New()
+// var storAddTmpMap = cmap.New()
 
 // GetCommittedState retrieves a value from the committed account storage trie.
 func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
@@ -219,19 +219,19 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		return value
 	}
 
-	// storageCacheMap := pair.GetStorageCacheMap()
+	storageCacheMap := pair.GetStorageCacheMap()
 	hashedKey := crypto.Keccak256Hash(s.addrHash[:], key[:]).Hex()
 	if s.db.Flag == 1 {
-		// if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
-		// 	storage := storageCache.(common.Hash)
-		// 	s.setOriginStorage(key, storage)
-		// 	return storage
-		// }
-
-		if storage, ok := storCacheMap[hashedKey]; ok {
+		if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
+			storage := storageCache.(common.Hash)
 			s.setOriginStorage(key, storage)
 			return storage
 		}
+
+		// if storage, ok := storCacheMap[hashedKey]; ok {
+		// 	s.setOriginStorage(key, storage)
+		// 	return storage
+		// }
 	}
 	// If the object was destructed in *this* block (and potentially resurrected),
 	// the storage has been cleared out, and we should *not* consult the previous
@@ -282,8 +282,8 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	}
 	s.setOriginStorage(key, value)
 	if s.db.Flag == 1 {
-		// storageCacheMap.Set(hashedKey, value)
-		storAddTmpMap.Set(hashedKey, value)
+		storageCacheMap.Set(hashedKey, value)
+		// storAddTmpMap.Set(hashedKey, value)
 	}
 	return value
 }
