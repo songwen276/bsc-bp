@@ -1357,6 +1357,7 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	log.Info("1000step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 
@@ -1365,6 +1366,7 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	log.Info("100step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 
@@ -1373,11 +1375,13 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	log.Info("10step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 	point := new(big.Int).Add(param.Start, big.NewInt(int64(index)))
 	if point.Cmp(big.NewInt(0)) == 0 {
 		results <- nil
+		return
 	}
 	param.Start = point
 	param.End = point
@@ -1387,8 +1391,10 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	log.Info("point", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
+		return
 	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
 		results <- nil
+		return
 	}
 
 	snapshots := make([]interface{}, 3)
@@ -1421,6 +1427,7 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	rois, err = getRois(s, triangular, param, ctx)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 
@@ -1428,11 +1435,13 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	rois, err = getRois(s, triangular, param, ctx)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 	point := new(big.Int).Add(param.Start, big.NewInt(int64(index)))
 	if point.Cmp(big.NewInt(0)) == 0 {
 		results <- nil
+		return
 	}
 	param.Start = point
 	param.End = point
@@ -1441,8 +1450,10 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	rois, err = getRois(s, triangular, param, ctx)
 	if err != nil {
 		results <- err
+		return
 	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
 		results <- nil
+		return
 	}
 
 	snapshots := make([]interface{}, 3)
