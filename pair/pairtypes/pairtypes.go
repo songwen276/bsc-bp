@@ -8,7 +8,7 @@ import (
 )
 
 type PairAPI interface {
-	PairCallBatch(datas [][]byte) error
+	PairCallBatch(triangulars []*ITriangularArbitrageTriangular) error
 	CallBatch() (string, error)
 }
 
