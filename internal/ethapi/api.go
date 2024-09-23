@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/pair"
+	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"math/big"
 	"os"
 	"strconv"
@@ -1328,25 +1329,186 @@ type Results struct {
 	ResultMap     map[string]interface{} `json:"resultMap"`
 }
 
-func worker(taskId int, job CallBatchArgs, results chan<- interface{}, ctx context.Context, s *BlockChainAPI) {
-	fmt.Printf("Worker %d processing job", taskId)
-	call, err := s.Call(ctx, job.Args, job.BlockNrOrHash, job.Overrides, job.BlockOverrides)
+// func worker(s *BlockChainAPI, results chan<- interface{}, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash) {
+// 	// 设置上下文，用于控制每个任务方法执行超时时间
+// 	ctx := context.Background()
+// 	call, err := s.FlagCall(ctx, args, blockNrOrHash, nil, nil)
+// 	if err != nil {
+// 		results <- err
+// 	} else {
+// 		results <- call
+// 	}
+// }
+
+func worker(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
+	// 设置上下文，用于控制每个任务方法执行超时时间
+	ctx := context.Background()
+	param := getArbitrageQueryParam(big.NewInt(0), 0, 10000)
+	rois, err := getRois(s, triangular, param, ctx)
 	if err != nil {
 		results <- err
+		return
+	}
+	log.Info("10000step", "rois", rois)
+
+	index := resolveROI(rois)
+	param = getArbitrageQueryParam(param.Start, index, 1000)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+	log.Info("1000step", "rois", rois)
+
+	param = getArbitrageQueryParam(param.Start, index, 100)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+	log.Info("100step", "rois", rois)
+
+	param = getArbitrageQueryParam(param.Start, index, 10)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+	point := new(big.Int).Add(param.Start, big.NewInt(int64(index)))
+	if point.Cmp(big.NewInt(0)) == 0 {
+		results <- nil
+	}
+	param.Start = point
+	param.End = point
+	param.Pieces = big.NewInt(1)
+	log.Info("10step", "rois", rois)
+
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
+		results <- nil
+	}
+	log.Info("point", "rois", rois)
+
+	snapshots := make([]interface{}, 3)
+	snapshots[0] = new(big.Int).Set(rois[3])
+	snapshots[1] = new(big.Int).Set(rois[4])
+	snapshots[2] = new(big.Int).Set(rois[5])
+
+	results <- rois
+}
+
+func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
+	// 设置上下文，用于控制每个任务方法执行超时时间
+	ctx := context.Background()
+	param := getArbitrageQueryParam(big.NewInt(0), 0, 10000)
+	rois, err := getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+
+	index := resolveROI(rois)
+	param = getArbitrageQueryParam(param.Start, index, 1000)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+
+	param = getArbitrageQueryParam(param.Start, index, 100)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+
+	param = getArbitrageQueryParam(param.Start, index, 10)
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	}
+	index = resolveROI(rois)
+	point := new(big.Int).Add(param.Start, big.NewInt(int64(index)))
+	if point.Cmp(big.NewInt(0)) == 0 {
+		results <- nil
+	}
+	param.Start = point
+	param.End = point
+	param.Pieces = big.NewInt(1)
+
+	rois, err = getRois(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
+		results <- nil
+	}
+
+	snapshots := make([]interface{}, 3)
+	snapshots[0] = new(big.Int).Set(rois[3])
+	snapshots[1] = new(big.Int).Set(rois[4])
+	snapshots[2] = new(big.Int).Set(rois[5])
+
+	results <- rois
+}
+
+func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) ([]*big.Int, error) {
+	data, _ := pair.Encoder("arbitrageQuery", triangular, param.Start, param.End, param.Pieces)
+	bytes := hexutil.Bytes(data)
+	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	call, err := s.FlagCall(ctx, args, &pair.LatestBlockNumber, nil, nil)
+	if err != nil {
+		return nil, err
 	} else {
-		results <- call
+		roiStr := hex.EncodeToString(call)
+		lenth := len(roiStr) / 64
+		rois := make([]*big.Int, lenth-2)
+		for j := 0; j < lenth; j++ {
+			if j > 1 {
+				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)-1], 16)
+				rois[j-2] = roi
+			}
+		}
+		return rois, err
 	}
 }
 
-func pairWorker(s *BlockChainAPI, results chan<- interface{}, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash) {
-	// 设置上下文，用于控制每个任务方法执行超时时间
-	ctx := context.Background()
-	call, err := s.FlagCall(ctx, args, blockNrOrHash, nil, nil)
-	if err != nil {
-		results <- err
-	} else {
-		results <- call
+type ArbitrageQueryParam struct {
+	Start  *big.Int
+	End    *big.Int
+	Pieces *big.Int
+}
+
+func getArbitrageQueryParam(start *big.Int, index, step int) *ArbitrageQueryParam {
+	if index >= 10 {
+		index = 9
 	}
+	// 计算 startNew = start + step * index
+	stepBigInt := big.NewInt(int64(step))
+	indexBigInt := big.NewInt(int64(index))
+	startNew := new(big.Int).Add(start, new(big.Int).Mul(stepBigInt, indexBigInt))
+
+	// 计算 end = startNew + step
+	end := new(big.Int).Add(startNew, stepBigInt)
+
+	// 返回查询参数
+	return &ArbitrageQueryParam{
+		Start:  startNew,
+		End:    end,
+		Pieces: big.NewInt(10), // 相当于 BigInteger.TEN
+	}
+}
+
+func resolveROI(rois []*big.Int) int {
+	var i int
+	// 循环遍历 rois，检查每 8 个元素中的第 6 个
+	for i = 0; i < (len(rois)-6)/8; i++ {
+		if rois[i*8+6].Cmp(big.NewInt(0)) == 0 { // 比较元素是否为 0
+			return i
+		}
+	}
+	return i
 }
 
 func GetEthCallData() ([]CallBatchArgs, error) {
@@ -1390,27 +1552,118 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 }
 
 // CallBatch batch executes Call
+// func (s *BlockChainAPI) CallBatch() (string, error) {
+// 	// 读取任务测试数据
+// 	log.Info("开始执行CallBatch")
+// 	datas, err := GetEthCallData()
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	// getDatasSince := time.Since(start)
+// 	// log.Info("获取所有测试数据花费时长", "runtime", getDatasSince)
+//
+// 	// 根据任务数创建结果读取通道
+// 	results := make(chan interface{}, len(datas))
+//
+// 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
+// 	start := time.Now()
+// 	var wg sync.WaitGroup
+// 	for _, job := range datas {
+// 		wg.Add(1)
+// 		gopool.Submit(func() {
+// 			defer wg.Done()
+// 			worker(s, results, job.Args, &pair.LatestBlockNumber)
+// 		})
+// 	}
+// 	wg.Wait()
+// 	close(results)
+// 	selectSince := time.Since(start)
+// 	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+//
+// 	// 读取任务结果通道数据进行处理
+// 	log.Info("读取任务结果通道数据进行处理")
+// 	resultMap := make(map[string]interface{}, len(datas))
+// 	i := 1
+// 	// 处理结果
+// 	for result := range results {
+// 		itoa := strconv.Itoa(i)
+// 		switch v := result.(type) {
+// 		case hexutil.Bytes:
+// 			bytes := result.(hexutil.Bytes)
+// 			if err != nil {
+// 				resultMap[itoa] = err.Error()
+// 			} else {
+// 				dateStr := hex.EncodeToString(bytes)
+// 				resultMap["itoa"] = dateStr
+// 				lenth := len(dateStr) / 64
+// 				roi := make([]*big.Int, lenth-2)
+// 				for j := 0; j < lenth; j++ {
+// 					subDataStr := dateStr[64*j : 64*(j+1)-1]
+// 					resultMap["itoabytes"+strconv.Itoa(j)] = subDataStr
+// 					if j > 1 {
+// 						setString, _ := new(big.Int).SetString(subDataStr, 16)
+// 						roi[j-2] = setString
+// 					}
+// 				}
+// 				log.Info("解析的roi成功", "roi", roi)
+// 			}
+// 		case error:
+// 			resultMap[itoa] = v.Error()
+// 		default:
+// 			resultMap[itoa] = v
+// 		}
+// 		i += 1
+// 	}
+// 	totalSince := time.Since(start)
+// 	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince, "StateObject缓存数", pair.GetStateObjectCacheMap().Count(), "Storage缓存数", pair.GetStorageCacheMap().Count())
+// 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
+//
+// 	// 创建文件
+// 	file, err := os.Create("/bc/bsc/build/bin/results.json")
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer file.Close()
+//
+// 	// 将 map 编码为 JSON
+// 	encoder := json.NewEncoder(file)
+// 	encoder.SetIndent("", "  ") // 设置缩进格式
+// 	if err := encoder.Encode(r); err != nil {
+// 		return "", err
+// 	}
+// 	log.Info("结果输出到文件完成，结束")
+// 	return "ok", nil
+// }
+
 func (s *BlockChainAPI) CallBatch() (string, error) {
 	// 读取任务测试数据
 	log.Info("开始执行CallBatch")
-	datas, err := GetEthCallData()
-	if err != nil {
-		return "", err
+	var triangulars []*pairtypes.ITriangularArbitrageTriangular
+	triangular := &pairtypes.ITriangularArbitrageTriangular{
+		Token0:  common.HexToAddress("0x0bc89aa98Ad94E6798Ec822d0814d934cCD0c0cE"),
+		Router0: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
+		Pair0:   common.HexToAddress("0x51C5251BF281C6d0eF8ced7a1741FdB68D130ac2"),
+		Token1:  common.HexToAddress("0x55d398326f99059fF775485246999027B3197955"),
+		Router1: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
+		Pair1:   common.HexToAddress("0x7EFaEf62fDdCCa950418312c6C91Aef321375A00"),
+		Token2:  common.HexToAddress("0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"),
+		Router2: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
+		Pair2:   common.HexToAddress("0xEE90C67C9dD5dE862F4eabFDd53007a2D95Df5c6"),
 	}
-	// getDatasSince := time.Since(start)
-	// log.Info("获取所有测试数据花费时长", "runtime", getDatasSince)
+	triangulars = append(triangulars, triangular)
 
-	// 根据任务数创建结果读取通道
-	results := make(chan interface{}, len(datas))
+	// 初始化构造当前区块公共数据
+	start := time.Now()
+	log.Info("开始执行PairCallBatch")
+	results := make(chan interface{}, len(triangulars))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
-	start := time.Now()
 	var wg sync.WaitGroup
-	for _, job := range datas {
+	for _, triangular := range triangulars {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker(s, results, job.Args, &pair.LatestBlockNumber)
+			worker(s, results, triangular)
 		})
 	}
 	wg.Wait()
@@ -1420,20 +1673,14 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 
 	// 读取任务结果通道数据进行处理
 	log.Info("读取任务结果通道数据进行处理")
-	resultMap := make(map[string]interface{}, len(datas))
+	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
 	for result := range results {
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
-		case hexutil.Bytes:
-			bytes := result.(hexutil.Bytes)
-			enc, err := json.Marshal(bytes)
-			if err != nil {
-				resultMap[itoa] = err.Error()
-			} else {
-				resultMap[itoa] = enc
-			}
+		case []*big.Int:
+			resultMap[itoa] = v
 		case error:
 			resultMap[itoa] = v.Error()
 		default:
@@ -1442,7 +1689,7 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		i += 1
 	}
 	totalSince := time.Since(start)
-	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince, "StateObject缓存数", pair.GetStateObjectCacheMap().Count(), "Storage缓存数", pair.GetStorageCacheMap().Count())
+	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
@@ -1463,21 +1710,19 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 }
 
 // PairCallBatch executes Call
-func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
+func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitrageTriangular) error {
 	// 初始化构造当前区块公共数据
 	start := time.Now()
 	log.Info("开始执行PairCallBatch")
-	results := make(chan interface{}, len(datas))
+	results := make(chan interface{}, len(triangulars))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
 	var wg sync.WaitGroup
-	for _, data := range datas {
-		bytes := hexutil.Bytes(data)
-		args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	for _, triangular := range triangulars {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			pairWorker(s, results, args, &pair.LatestBlockNumber)
+			pairWorker(s, results, triangular)
 		})
 	}
 	wg.Wait()
@@ -1487,20 +1732,14 @@ func (s *BlockChainAPI) PairCallBatch(datas [][]byte) error {
 
 	// 读取任务结果通道数据进行处理
 	log.Info("读取任务结果通道数据进行处理")
-	resultMap := make(map[string]interface{}, len(datas))
+	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
 	for result := range results {
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
-		case hexutil.Bytes:
-			bytes := result.(hexutil.Bytes)
-			enc, err := json.Marshal(bytes)
-			if err != nil {
-				resultMap[itoa] = err.Error()
-			} else {
-				resultMap[itoa] = enc
-			}
+		case []*big.Int:
+			resultMap[itoa] = v
 		case error:
 			resultMap[itoa] = v.Error()
 		default:

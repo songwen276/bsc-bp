@@ -2374,11 +2374,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes)
 		// 根据pair获取triangle
 		// var triangles []pairtypes.Triangle
-		var trianglesData [][]byte
+		var triangulars []*pairtypes.ITriangularArbitrageTriangular
 		for _, triangleIdSet := range pairAddrMap {
 			for _, triangleId := range triangleIdSet.GetData().Keys() {
 				if triangle, exists := pairCache.GetTriangle(triangleId); exists {
-					triangular := pairtypes.ITriangularArbitrageTriangular{
+					triangular := &pairtypes.ITriangularArbitrageTriangular{
 						Token0:  common.HexToAddress(triangle.Token0),
 						Router0: common.HexToAddress(triangle.Router0),
 						Pair0:   common.HexToAddress(triangle.Pair0),
@@ -2390,16 +2390,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 						Pair2:   common.HexToAddress(triangle.Pair2),
 					}
 
-					data, err := pair.Encoder("arbitrageQuery", triangular, big.NewInt(0), big.NewInt(10000), big.NewInt(10))
-					if err != nil {
-						log.Error("编码triangles数据失败", "err", err)
-					}
 					// triangles = append(triangles, triangle)
-					trianglesData = append(trianglesData, data)
+					triangulars = append(triangulars, triangular)
 				}
 			}
 		}
-		lenth := len(trianglesData)
+		lenth := len(triangulars)
 		if lenth > 0 {
 			log.Info("获取triangles成功", "triangles数量", lenth)
 			// err := bc.ethAPI.PairCallBatch(trianglesData)
