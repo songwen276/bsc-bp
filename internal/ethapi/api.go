@@ -1340,36 +1340,37 @@ type Results struct {
 // 	}
 // }
 
-func worker(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
+func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
 	// 设置上下文，用于控制每个任务方法执行超时时间
 	ctx := context.Background()
 	param := getArbitrageQueryParam(big.NewInt(0), 0, 10000)
-	rois, err := getRois(s, triangular, param, ctx)
+	rois, err := getRoisTest(s, triangular, param, ctx)
+	log.Info("10000step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
 		return
 	}
-	log.Info("10000step", "rois", rois)
 
 	index := resolveROI(rois)
 	param = getArbitrageQueryParam(param.Start, index, 1000)
-	rois, err = getRois(s, triangular, param, ctx)
+	rois, err = getRoisTest(s, triangular, param, ctx)
+	log.Info("1000step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
 	}
 	index = resolveROI(rois)
-	log.Info("1000step", "rois", rois)
 
 	param = getArbitrageQueryParam(param.Start, index, 100)
-	rois, err = getRois(s, triangular, param, ctx)
+	rois, err = getRoisTest(s, triangular, param, ctx)
+	log.Info("100step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
 	}
 	index = resolveROI(rois)
-	log.Info("100step", "rois", rois)
 
 	param = getArbitrageQueryParam(param.Start, index, 10)
-	rois, err = getRois(s, triangular, param, ctx)
+	rois, err = getRoisTest(s, triangular, param, ctx)
+	log.Info("10step", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
 	}
@@ -1381,15 +1382,14 @@ func worker(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.
 	param.Start = point
 	param.End = point
 	param.Pieces = big.NewInt(1)
-	log.Info("10step", "rois", rois)
 
-	rois, err = getRois(s, triangular, param, ctx)
+	rois, err = getRoisTest(s, triangular, param, ctx)
+	log.Info("point", "start", param.Start, "end", param.End, "step", param.Pieces, "rois", rois)
 	if err != nil {
 		results <- err
 	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
 		results <- nil
 	}
-	log.Info("point", "rois", rois)
 
 	snapshots := make([]interface{}, 3)
 	snapshots[0] = new(big.Int).Set(rois[3])
@@ -1465,6 +1465,29 @@ func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangu
 		lenth := len(roiStr) / 64
 		rois := make([]*big.Int, lenth-2)
 		for j := 0; j < lenth; j++ {
+			if j > 1 {
+				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)-1], 16)
+				rois[j-2] = roi
+			}
+		}
+		return rois, err
+	}
+}
+
+func getRoisTest(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) ([]*big.Int, error) {
+	data, _ := pair.Encoder("arbitrageQuery", triangular, param.Start, param.End, param.Pieces)
+	bytes := hexutil.Bytes(data)
+	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	call, err := s.FlagCall(ctx, args, &pair.LatestBlockNumber, nil, nil)
+	if err != nil {
+		return nil, err
+	} else {
+		roiStr := hex.EncodeToString(call)
+		lenth := len(roiStr) / 64
+		rois := make([]*big.Int, lenth-2)
+		for j := 0; j < lenth; j++ {
+			subStr := roiStr[64*j : 64*(j+1)-1]
+			log.Info("CallReturn EncodeToString", "roiStr", subStr)
 			if j > 1 {
 				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)-1], 16)
 				rois[j-2] = roi
@@ -1663,7 +1686,7 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		wg.Add(1)
 		gopool.Submit(func() {
 			defer wg.Done()
-			worker(s, results, triangular)
+			workerTest(s, results, triangular)
 		})
 	}
 	wg.Wait()
