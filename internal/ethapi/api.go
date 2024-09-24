@@ -1315,20 +1315,6 @@ func (s *BlockChainAPI) FlagCall(ctx context.Context, args TransactionArgs, bloc
 	return result.Return(), result.Err
 }
 
-type CallBatchArgs struct {
-	Args           TransactionArgs
-	BlockNrOrHash  *rpc.BlockNumberOrHash
-	Overrides      *StateOverride
-	BlockOverrides *BlockOverrides
-}
-
-type Results struct {
-	GetDatasSince time.Duration          `json:"getDatasSince"`
-	SelectSince   time.Duration          `json:"selectSince"`
-	TotalSince    time.Duration          `json:"totalSince"`
-	ResultMap     map[string]interface{} `json:"resultMap"`
-}
-
 // func worker(s *BlockChainAPI, results chan<- interface{}, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash) {
 // 	// 设置上下文，用于控制每个任务方法执行超时时间
 // 	ctx := context.Background()
@@ -1399,37 +1385,38 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 		return
 	}
 
-	snapshots := make([]interface{}, 3)
-	snapshots[0] = rois[3]
-	snapshots[1] = rois[4]
-	snapshots[2] = rois[5]
-	snapshotsPacked := solsha3.SoliditySHA3(snapshots)
-	snapshotsHash := crypto.Keccak256(snapshotsPacked)
-	snapshotsValue, _ := new(big.Int).SetString(string(snapshotsHash[2:4]), 16)
+	snapshotsHash := solsha3.SoliditySHA3(solsha3.Int256(rois[3]), solsha3.Int256(rois[4]), solsha3.Int256(rois[5]))
+	subHex := hex.EncodeToString(snapshotsHash)[0:2]
 
-	parameters := make([]interface{}, 17)
-	parameters[0] = big.NewInt(0)
-	parameters[1] = snapshotsValue
-	parameters[2] = common.HexToAddress(rois[0].String())
-	parameters[3] = rois[6]
-	parameters[4] = common.HexToAddress(rois[1].String())
-	parameters[5] = rois[7]
-	parameters[6] = common.HexToAddress(rois[2].String())
-	parameters[7] = rois[10]
-	parameters[8] = triangular.Token0
-	parameters[9] = rois[11]
-	parameters[10] = triangular.Pair0
-	parameters[11] = rois[12]
-	parameters[12] = triangular.Token1
-	parameters[13] = rois[13]
-	parameters[14] = triangular.Pair1
-	parameters[15] = triangular.Token2
-	parameters[16] = triangular.Pair2
+	parameters := []interface{}{
+		hex.EncodeToString(solsha3.Uint32(big.NewInt(0))),
+		subHex,
+		common.BigToAddress(rois[0]),
+		getWei(rois[6], 96),
+		common.BigToAddress(rois[1]),
+		getWei(rois[7], 96),
+		common.BigToAddress(rois[2]),
+		getWei(rois[10], 96),
+		triangular.Token0,
+		getWei(rois[11], 96),
+		triangular.Pair0,
+		getWei(rois[12], 96),
+		triangular.Token1,
+		getWei(rois[13], 96),
+		triangular.Pair1,
+		triangular.Token2,
+		triangular.Pair2,
+	}
 
-	sha3 := solsha3.SoliditySHA3(parameters)
+	calldata, err := EncodePackedBsc(parameters)
+	if err != nil {
+		results <- err
+		return
+	}
+
 	ROI := &ROI{
-		TriangularEntity: *triangular,
-		CallData:         string(sha3),
+		TriangularEntity: triangular,
+		CallData:         calldata,
 		Profit:           rois[13],
 	}
 
@@ -1491,42 +1478,80 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 		return
 	}
 
-	snapshots := make([]interface{}, 3)
-	snapshots[0] = rois[3]
-	snapshots[1] = rois[4]
-	snapshots[2] = rois[5]
-	snapshotsPacked := solsha3.SoliditySHA3(snapshots)
-	snapshotsHash := crypto.Keccak256(snapshotsPacked)
-	snapshotsValue, _ := new(big.Int).SetString(string(snapshotsHash[2:4]), 16)
+	snapshotsHash := solsha3.SoliditySHA3(solsha3.Int256(rois[3]), solsha3.Int256(rois[4]), solsha3.Int256(rois[5]))
+	subHex := hex.EncodeToString(snapshotsHash)[0:2]
 
-	parameters := make([]interface{}, 17)
-	parameters[0] = big.NewInt(0)
-	parameters[1] = snapshotsValue
-	parameters[2] = common.HexToAddress(rois[0].String())
-	parameters[3] = rois[6]
-	parameters[4] = common.HexToAddress(rois[1].String())
-	parameters[5] = rois[7]
-	parameters[6] = common.HexToAddress(rois[2].String())
-	parameters[7] = rois[10]
-	parameters[8] = triangular.Token0
-	parameters[9] = rois[11]
-	parameters[10] = triangular.Pair0
-	parameters[11] = rois[12]
-	parameters[12] = triangular.Token1
-	parameters[13] = rois[13]
-	parameters[14] = triangular.Pair1
-	parameters[15] = triangular.Token2
-	parameters[16] = triangular.Pair2
+	parameters := []interface{}{
+		hex.EncodeToString(solsha3.Uint32(big.NewInt(0))),
+		subHex,
+		common.BigToAddress(rois[0]),
+		getWei(rois[6], 96),
+		common.BigToAddress(rois[1]),
+		getWei(rois[7], 96),
+		common.BigToAddress(rois[2]),
+		getWei(rois[10], 96),
+		triangular.Token0,
+		getWei(rois[11], 96),
+		triangular.Pair0,
+		getWei(rois[12], 96),
+		triangular.Token1,
+		getWei(rois[13], 96),
+		triangular.Pair1,
+		triangular.Token2,
+		triangular.Pair2,
+	}
 
-	sha3 := solsha3.SoliditySHA3(parameters)
+	calldata, err := EncodePackedBsc(parameters)
+	if err != nil {
+		results <- err
+		return
+	}
+
 	ROI := &ROI{
-		TriangularEntity: *triangular,
-		CallData:         string(sha3),
+		TriangularEntity: triangular,
+		CallData:         calldata,
 		Profit:           rois[13],
 	}
 
 	results <- ROI
 	return
+}
+
+func EncodePackedBsc(values []interface{}) (string, error) {
+	var encoded string
+	for _, value := range values {
+		switch v := value.(type) {
+		case string:
+			encoded = encoded + v
+		case *Wei:
+			wei := *v
+			encoded = encoded + wei.Data[len(wei.Data)-wei.BitSize/4:]
+		case common.Address:
+			addrStr := v.Hex()[2:]
+			encoded = encoded + addrStr
+		default:
+			return "", fmt.Errorf("unsupported type: %T", value)
+		}
+	}
+	return encoded, nil
+}
+
+type Wei struct {
+	BitSize int
+	Data    string
+}
+
+func getWei(roi *big.Int, bitSize int) *Wei {
+	return &Wei{
+		BitSize: bitSize,
+		Data:    hex.EncodeToString(solsha3.Int256(roi)),
+	}
+}
+
+type ROI struct {
+	TriangularEntity *pairtypes.ITriangularArbitrageTriangular
+	CallData         string
+	Profit           *big.Int
 }
 
 func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) ([]*big.Int, error) {
@@ -1579,12 +1604,6 @@ type ArbitrageQueryParam struct {
 	Pieces *big.Int
 }
 
-type ROI struct {
-	TriangularEntity pairtypes.ITriangularArbitrageTriangular
-	CallData         string
-	Profit           *big.Int
-}
-
 func getArbitrageQueryParam(start *big.Int, index, step int) *ArbitrageQueryParam {
 	if index >= 10 {
 		index = 9
@@ -1614,6 +1633,20 @@ func resolveROI(rois []*big.Int) int {
 		}
 	}
 	return i
+}
+
+type CallBatchArgs struct {
+	Args           TransactionArgs
+	BlockNrOrHash  *rpc.BlockNumberOrHash
+	Overrides      *StateOverride
+	BlockOverrides *BlockOverrides
+}
+
+type Results struct {
+	GetDatasSince time.Duration          `json:"getDatasSince"`
+	SelectSince   time.Duration          `json:"selectSince"`
+	TotalSince    time.Duration          `json:"totalSince"`
+	ResultMap     map[string]interface{} `json:"resultMap"`
 }
 
 func GetEthCallData() ([]CallBatchArgs, error) {
