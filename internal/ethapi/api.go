@@ -1392,7 +1392,9 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	if err != nil {
 		results <- err
 		return
-	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
+	}
+
+	if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
 		results <- nil
 		return
 	}
@@ -1425,8 +1427,13 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	parameters[16] = triangular.Pair2
 
 	sha3 := solsha3.SoliditySHA3(parameters)
+	ROI := &ROI{
+		TriangularEntity: *triangular,
+		CallData:         string(sha3),
+		Profit:           rois[13],
+	}
 
-	results <- string(sha3)
+	results <- ROI
 	return
 }
 
@@ -1836,8 +1843,8 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 	for result := range results {
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
-		case []*big.Int:
-			resultMap[itoa] = v
+		case *ROI:
+			resultMap[itoa] = *v
 		case error:
 			resultMap[itoa] = v.Error()
 		default:
