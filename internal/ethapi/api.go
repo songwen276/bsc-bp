@@ -1477,7 +1477,9 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	if err != nil {
 		results <- err
 		return
-	} else if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
+	}
+
+	if rois == nil || rois[13] == nil || rois[13].Cmp(big.NewInt(5000000)) < 0 {
 		results <- nil
 		return
 	}
