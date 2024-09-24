@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"io"
 	"math/big"
+	"math/rand"
 	"runtime"
 	"sort"
 	"sync"
@@ -2397,10 +2398,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		lenth := len(triangulars)
 		if lenth > 0 {
-			log.Info("获取triangles成功", "triangles数量", lenth)
-			// err := bc.ethAPI.PairCallBatch(trianglesData)
-			if err != nil {
-				log.Error("triangles成功执行eth_call失败", "err", err)
+			if lenth <= 1000 {
+				log.Info("获取triangulars数量", "lenth", lenth)
+				bc.ethAPI.PairCallBatch(triangulars)
+			} else {
+				log.Info("过滤获取triangulars数量", "lenth", 1000)
+				bc.ethAPI.PairCallBatch(selectRandomElements(triangulars, 1000))
+				if err != nil {
+					log.Error("triangles成功执行eth_call失败", "err", err)
+				}
 			}
 		}
 
@@ -2457,6 +2463,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	stats.ignored += it.remaining()
 
 	return it.index, err
+}
+
+func selectRandomElements(slice []*pairtypes.ITriangularArbitrageTriangular, count int) []*pairtypes.ITriangularArbitrageTriangular {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	selected := make([]*pairtypes.ITriangularArbitrageTriangular, count)
+	for i := 0; i < count; i++ {
+		selected[i] = slice[r.Intn(len(slice))]
+	}
+	return selected
 }
 
 func (bc *BlockChain) updateHighestVerifiedHeader(header *types.Header) {
