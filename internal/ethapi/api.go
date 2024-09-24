@@ -1415,9 +1415,9 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	}
 
 	ROI := &ROI{
-		TriangularEntity: triangular,
+		TriangularEntity: *triangular,
 		CallData:         calldata,
-		Profit:           rois[13],
+		Profit:           *rois[13],
 	}
 
 	results <- ROI
@@ -1508,9 +1508,9 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	}
 
 	ROI := &ROI{
-		TriangularEntity: triangular,
+		TriangularEntity: *triangular,
 		CallData:         calldata,
-		Profit:           rois[13],
+		Profit:           *rois[13],
 	}
 
 	results <- ROI
@@ -1549,9 +1549,9 @@ func getWei(roi *big.Int, bitSize int) *Wei {
 }
 
 type ROI struct {
-	TriangularEntity *pairtypes.ITriangularArbitrageTriangular
+	TriangularEntity pairtypes.ITriangularArbitrageTriangular
 	CallData         string
-	Profit           *big.Int
+	Profit           big.Int
 }
 
 func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) ([]*big.Int, error) {
