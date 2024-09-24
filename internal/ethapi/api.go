@@ -1426,7 +1426,7 @@ func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 
 	sha3 := solsha3.SoliditySHA3(parameters)
 
-	results <- sha3
+	results <- string(sha3)
 	return
 }
 
@@ -1445,6 +1445,7 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	rois, err = getRois(s, triangular, param, ctx)
 	if err != nil {
 		results <- err
+		return
 	}
 	index = resolveROI(rois)
 
@@ -1482,11 +1483,41 @@ func pairWorker(s *BlockChainAPI, results chan<- interface{}, triangular *pairty
 	}
 
 	snapshots := make([]interface{}, 3)
-	snapshots[0] = new(big.Int).Set(rois[3])
-	snapshots[1] = new(big.Int).Set(rois[4])
-	snapshots[2] = new(big.Int).Set(rois[5])
+	snapshots[0] = rois[3]
+	snapshots[1] = rois[4]
+	snapshots[2] = rois[5]
+	snapshotsPacked := solsha3.SoliditySHA3(snapshots)
+	snapshotsHash := crypto.Keccak256(snapshotsPacked)
+	snapshotsValue, _ := new(big.Int).SetString(string(snapshotsHash[2:4]), 16)
 
-	results <- rois
+	parameters := make([]interface{}, 17)
+	parameters[0] = big.NewInt(0)
+	parameters[1] = snapshotsValue
+	parameters[2] = common.HexToAddress(rois[0].String())
+	parameters[3] = rois[6]
+	parameters[4] = common.HexToAddress(rois[1].String())
+	parameters[5] = rois[7]
+	parameters[6] = common.HexToAddress(rois[2].String())
+	parameters[7] = rois[10]
+	parameters[8] = triangular.Token0
+	parameters[9] = rois[11]
+	parameters[10] = triangular.Pair0
+	parameters[11] = rois[12]
+	parameters[12] = triangular.Token1
+	parameters[13] = rois[13]
+	parameters[14] = triangular.Pair1
+	parameters[15] = triangular.Token2
+	parameters[16] = triangular.Pair2
+
+	sha3 := solsha3.SoliditySHA3(parameters)
+	ROI := &ROI{
+		TriangularEntity: *triangular,
+		CallData:         string(sha3),
+		Profit:           rois[13],
+	}
+
+	results <- ROI
+	return
 }
 
 func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) ([]*big.Int, error) {
@@ -1502,7 +1533,7 @@ func getRois(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangu
 		rois := make([]*big.Int, lenth-2)
 		for j := 0; j < lenth; j++ {
 			if j > 1 {
-				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)-1], 16)
+				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)], 16)
 				rois[j-2] = roi
 			}
 		}
@@ -1522,10 +1553,10 @@ func getRoisTest(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTri
 		lenth := len(roiStr) / 64
 		rois := make([]*big.Int, lenth-2)
 		for j := 0; j < lenth; j++ {
-			subStr := roiStr[64*j : 64*(j+1)-1]
+			subStr := roiStr[64*j : 64*(j+1)]
 			log.Info("CallReturn EncodeToString", "roiStr", subStr)
 			if j > 1 {
-				roi, _ := new(big.Int).SetString(roiStr[64*j:64*(j+1)-1], 16)
+				roi, _ := new(big.Int).SetString(subStr, 16)
 				rois[j-2] = roi
 			}
 		}
@@ -1537,6 +1568,12 @@ type ArbitrageQueryParam struct {
 	Start  *big.Int
 	End    *big.Int
 	Pieces *big.Int
+}
+
+type ROI struct {
+	TriangularEntity pairtypes.ITriangularArbitrageTriangular
+	CallData         string
+	Profit           *big.Int
 }
 
 func getArbitrageQueryParam(start *big.Int, index, step int) *ArbitrageQueryParam {
@@ -1738,8 +1775,8 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 	for result := range results {
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
-		case []*big.Int:
-			resultMap[itoa] = v
+		case *ROI:
+			resultMap[itoa] = *v
 		case error:
 			resultMap[itoa] = v.Error()
 		default:
