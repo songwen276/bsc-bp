@@ -1844,6 +1844,7 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
 		case *ROI:
+			fmt.Printf("获取生成ROI成功：ROI=%v\n", *v)
 			resultMap[itoa] = *v
 		case error:
 			resultMap[itoa] = v.Error()
