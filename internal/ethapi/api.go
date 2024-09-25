@@ -1326,6 +1326,107 @@ func (s *BlockChainAPI) FlagCall(ctx context.Context, args TransactionArgs, bloc
 // 	}
 // }
 
+func workerDirect(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
+	// 设置上下文，用于控制每个任务方法执行超时时间
+	ctx := context.Background()
+	param := getArbitrageQueryParam(big.NewInt(0), 0, 10000)
+	index, err := directResolveIndex(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+	log.Info("10000step", "start", param.Start, "end", param.End, "step", param.Pieces, "index", index)
+
+	param = getArbitrageQueryParam(param.Start, index, 1000)
+	index, err = directResolveIndex(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+	log.Info("1000step", "start", param.Start, "end", param.End, "step", param.Pieces, "index", index)
+
+	param = getArbitrageQueryParam(param.Start, index, 100)
+	index, err = directResolveIndex(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+	log.Info("100step", "start", param.Start, "end", param.End, "step", param.Pieces, "index", index)
+
+	param = getArbitrageQueryParam(param.Start, index, 10)
+	index, err = directResolveIndex(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+	log.Info("10step", "start", param.Start, "end", param.End, "step", param.Pieces, "index", index)
+
+	point := new(big.Int).Add(param.Start, big.NewInt(int64(index)))
+	if point.Cmp(big.NewInt(0)) == 0 {
+		results <- nil
+		return
+	}
+	param.Start = point
+	param.End = point
+	param.Pieces = big.NewInt(1)
+
+	call, err := getRoisDirect(s, triangular, param, ctx)
+	if err != nil {
+		results <- err
+		return
+	}
+	roisBytes := call[32*2:]
+	roisStr := hex.EncodeToString(roisBytes)
+	var rois []string
+	for i := 0; i < len(roisStr)/64; i++ {
+		rois[i] = roisStr[i*64 : (i+1)*64]
+	}
+
+	roi13 := new(big.Int).SetBytes(roisBytes[32*12 : 32*13])
+	if call == nil || roi13.Cmp(big.NewInt(5000000)) < 0 {
+		results <- nil
+		return
+	}
+
+	snapshotsHash := solsha3.SoliditySHA3(rois[3], rois[4], rois[5])
+	subHex := hex.EncodeToString(snapshotsHash)[0:2]
+
+	parameters := []interface{}{
+		hex.EncodeToString(solsha3.Uint32(big.NewInt(0))),
+		subHex,
+		rois[0][24:],
+		rois[6][40:],
+		rois[1][24:],
+		rois[7][40:],
+		rois[2][24],
+		rois[10][40:],
+		triangular.Token0,
+		rois[11][40:],
+		triangular.Pair0,
+		rois[12][40:],
+		triangular.Token1,
+		rois[13][40:],
+		triangular.Pair1,
+		triangular.Token2,
+		triangular.Pair2,
+	}
+
+	calldata, err := EncodePackedBsc(parameters)
+	if err != nil {
+		results <- err
+		return
+	}
+
+	ROI := &ROI{
+		TriangularEntity: *triangular,
+		CallData:         calldata,
+		Profit:           *roi13,
+	}
+
+	results <- ROI
+	return
+}
+
 func workerTest(s *BlockChainAPI, results chan<- interface{}, triangular *pairtypes.ITriangularArbitrageTriangular) {
 	// 设置上下文，用于控制每个任务方法执行超时时间
 	ctx := context.Background()
@@ -1598,6 +1699,13 @@ func getRoisTest(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTri
 	}
 }
 
+func getRoisDirect(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) (hexutil.Bytes, error) {
+	data, _ := pair.Encoder("arbitrageQuery", triangular, param.Start, param.End, param.Pieces)
+	bytes := hexutil.Bytes(data)
+	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	return s.FlagCall(ctx, args, &pair.LatestBlockNumber, nil, nil)
+}
+
 type ArbitrageQueryParam struct {
 	Start  *big.Int
 	End    *big.Int
@@ -1626,13 +1734,36 @@ func getArbitrageQueryParam(start *big.Int, index, step int) *ArbitrageQueryPara
 
 func resolveROI(rois []*big.Int) int {
 	var i int
-	// 循环遍历 rois，检查每 8 个元素中的第 6 个
+	// 排除rois前6个元素，剩下元素每8个一组，循环每组中首元素判断是否为0
 	for i = 0; i < (len(rois)-6)/8; i++ {
-		if rois[i*8+6].Cmp(big.NewInt(0)) == 0 { // 比较元素是否为 0
+		if rois[i*8+6].Cmp(big.NewInt(0)) == 0 {
 			return i
 		}
 	}
 	return i
+}
+
+func directResolveIndex(s *BlockChainAPI, triangular *pairtypes.ITriangularArbitrageTriangular, param *ArbitrageQueryParam, ctx context.Context) (int, error) {
+	data, _ := pair.Encoder("arbitrageQuery", triangular, param.Start, param.End, param.Pieces)
+	bytes := hexutil.Bytes(data)
+	args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+	call, err := s.FlagCall(ctx, args, &pair.LatestBlockNumber, nil, nil)
+	var i int
+	if err != nil {
+		return i, err
+	}
+
+	// 截取掉前8个长度为32个字节的元素，获取roi利润字节部分数据，同样这些数据每32个字节长度代表一个元素，并将元素每8个分成一组（正常数据能得到10组数据，每组索引0-9）
+	roiCall := call[32*8:]
+	lenth := len(roiCall) / 32 / 8
+
+	// 从第一组开始循环，将组内首个字节元素转换为big.int类型，判断其值是否等于0，等于0代表无利润了，返回该组的索引
+	for i = 0; i < lenth; i++ {
+		if new(big.Int).SetBytes(roiCall[i*8*32:i*8*32+32]).Cmp(big.NewInt(0)) == 0 {
+			return i, nil
+		}
+	}
+	return i, nil
 }
 
 type CallBatchArgs struct {
