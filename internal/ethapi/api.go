@@ -1850,7 +1850,6 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 // 	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
 //
 // 	// 读取任务结果通道数据进行处理
-// 	log.Info("读取任务结果通道数据进行处理")
 // 	resultMap := make(map[string]interface{}, len(datas))
 // 	i := 1
 // 	// 处理结果
@@ -1884,7 +1883,6 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 // 		i += 1
 // 	}
 // 	totalSince := time.Since(start)
-// 	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince, "StateObject缓存数", pair.GetStateObjectCacheMap().Count(), "Storage缓存数", pair.GetStorageCacheMap().Count())
 // 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 //
 // 	// 创建文件
@@ -1923,7 +1921,6 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 
 	// 初始化构造当前区块公共数据
 	start := time.Now()
-	log.Info("开始执行PairCallBatch")
 	results := make(chan interface{}, len(triangulars))
 
 	// 提交任务到协程池，所有协程完成后关闭结果读取通道
@@ -1941,7 +1938,6 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
 
 	// 读取任务结果通道数据进行处理
-	log.Info("读取任务结果通道数据进行处理")
 	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
@@ -1958,7 +1954,6 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		i += 1
 	}
 	totalSince := time.Since(start)
-	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
@@ -2000,7 +1995,6 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
 
 	// 读取任务结果通道数据进行处理
-	log.Info("读取任务结果通道数据进行处理")
 	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
@@ -2008,7 +2002,7 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
 		case *ROI:
-			fmt.Printf("获取生成ROI成功：ROI=%v\n", *v)
+			log.Info("获取生成ROI成功", "ROI", *v)
 			resultMap[itoa] = *v
 		case error:
 			resultMap[itoa] = v.Error()
@@ -2018,7 +2012,6 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		i += 1
 	}
 	totalSince := time.Since(start)
-	log.Info("所有任务执行并解析结果花费总时间", "runtime", totalSince)
 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
 	// 创建文件
