@@ -20,7 +20,6 @@ package state
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/pair"
 	"runtime"
 	"sort"
 	"sync"
@@ -728,23 +727,23 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 
 	// StateDB自己本身无缓存时，在从公共的缓存中获取，如果存在则将其复制成新的实例更新到StateDB中
 	// 复制实例主要是避免线程安全问题，不同线程不同的StateDB操作各自不同的stateObject，可以将stateObjectCacheMap理解成另一个数据库
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	if s.Flag == 1 {
-		if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
-			objCache := objectCache.(*stateObject)
-			object := newObject(s, addr, objCache.origin)
-			object.code = objCache.code
-			s.setStateObject(object)
-			return object
-		}
-
-		// if objCache, ok := stateObjCacheMap[addr.Hex()]; ok {
-		// 	object := newObject(s, addr, objCache.origin)
-		// 	object.code = objCache.code
-		// 	s.setStateObject(object)
-		// 	return object
-		// }
-	}
+	// stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	// if s.Flag == 1 {
+	// 	if objectCache, ok := stateObjectCacheMap.Get(addr.Hex()); ok {
+	// 		objCache := objectCache.(*stateObject)
+	// 		object := newObject(s, addr, objCache.origin)
+	// 		object.code = objCache.code
+	// 		s.setStateObject(object)
+	// 		return object
+	// 	}
+	//
+	// 	// if objCache, ok := stateObjCacheMap[addr.Hex()]; ok {
+	// 	// 	object := newObject(s, addr, objCache.origin)
+	// 	// 	object.code = objCache.code
+	// 	// 	s.setStateObject(object)
+	// 	// 	return object
+	// 	// }
+	// }
 
 	// If no live objects are available, attempt to use snapshots
 	// 如果StateDB自己本身无缓存，公共缓存也没有再从snapshot和磁盘中获取，获取后除了要更新到StateDB，还要将其添加到公共缓存中
@@ -801,11 +800,11 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	// Insert into the live set
 	obj := newObject(s, addr, data)
 	s.setStateObject(obj)
-	if s.Flag == 1 {
-		obj.Code()
-		stateObjectCacheMap.Set(addr.Hex(), obj)
-		// stateObjAddTmpMap.Set(addr.Hex(), obj)
-	}
+	// if s.Flag == 1 {
+	// 	obj.Code()
+	// 	stateObjectCacheMap.Set(addr.Hex(), obj)
+	// 	// stateObjAddTmpMap.Set(addr.Hex(), obj)
+	// }
 	return obj
 }
 
@@ -858,10 +857,10 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 		delete(s.storagesOrigin, prev.address)
 	}
 	s.setStateObject(newobj)
-	if s.Flag == 1 {
-		stateObjectCacheMap := pair.GetStateObjectCacheMap()
-		stateObjectCacheMap.Set(addr.Hex(), newobj)
-	}
+	// if s.Flag == 1 {
+	// 	stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	// 	stateObjectCacheMap.Set(addr.Hex(), newobj)
+	// }
 	if prev != nil && !prev.deleted {
 		return newobj, prev
 	}
@@ -1803,35 +1802,35 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 	// storAddTmpMap.Clear()
 
 	// 新区块产生后更新stateObj与storage数据缓存
-	stateObjectCacheMap := pair.GetStateObjectCacheMap()
-	for addr := range s.stateObjectsDirty {
-		if obj := s.stateObjects[addr]; !obj.deleted {
-			if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
-				stateObjectCacheMap.Set(addr.Hex(), obj)
-			}
-
-			// if _, ok := stateObjCacheMap[addr.Hex()]; ok {
-			// 	stateObjCacheMap[addr.Hex()] = obj
-			// }
-		}
-	}
-	storageCacheMap := pair.GetStorageCacheMap()
-	for addr, storage := range s.storages {
-		for key, val := range storage {
-			hashedKey := crypto.Keccak256Hash(addr[:], key[:]).Hex()
-			if _, exists := storageCacheMap.Get(hashedKey); exists {
-				storageCacheMap.Set(hashedKey, val)
-			}
-
-			// if _, ok := storCacheMap[hashedKey]; ok {
-			// 	storCacheMap[hashedKey] = common.Hash(val)
-			// }
-		}
-	}
+	// stateObjectCacheMap := pair.GetStateObjectCacheMap()
+	// for addr := range s.stateObjectsDirty {
+	// 	if obj := s.stateObjects[addr]; !obj.deleted {
+	// 		if _, loaded := stateObjectCacheMap.Get(addr.Hex()); loaded {
+	// 			stateObjectCacheMap.Set(addr.Hex(), obj)
+	// 		}
+	//
+	// 		// if _, ok := stateObjCacheMap[addr.Hex()]; ok {
+	// 		// 	stateObjCacheMap[addr.Hex()] = obj
+	// 		// }
+	// 	}
+	// }
+	// storageCacheMap := pair.GetStorageCacheMap()
+	// for addr, storage := range s.storages {
+	// 	for key, val := range storage {
+	// 		hashedKey := crypto.Keccak256Hash(addr[:], key[:]).Hex()
+	// 		if _, exists := storageCacheMap.Get(hashedKey); exists {
+	// 			storageCacheMap.Set(hashedKey, val)
+	// 		}
+	//
+	// 		// if _, ok := storCacheMap[hashedKey]; ok {
+	// 		// 	storCacheMap[hashedKey] = common.Hash(val)
+	// 		// }
+	// 	}
+	// }
 
 	// 统计元素个数
-	fmt.Printf("stateObjectCacheMap中的元素个数: %d\n", stateObjectCacheMap.Count())
-	fmt.Printf("storageCacheMap中的元素个数: %d\n", storageCacheMap.Count())
+	// fmt.Printf("stateObjectCacheMap中的元素个数: %d\n", stateObjectCacheMap.Count())
+	// fmt.Printf("storageCacheMap中的元素个数: %d\n", storageCacheMap.Count())
 	// fmt.Printf("stateObjCacheMap中的元素个数: %d\n", len(stateObjCacheMap))
 	// fmt.Printf("storCacheMap中的元素个数: %d\n", len(storCacheMap))
 

@@ -2372,7 +2372,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			}
 		}
 		// log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
-		log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes)
+		// log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes)
 		// 根据pair获取triangle
 		// var triangles []pairtypes.Triangle
 		var triangulars []*pairtypes.ITriangularArbitrageTriangular
@@ -2398,12 +2398,13 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		lenth := len(triangulars)
 		if lenth > 0 {
-			if lenth <= 3000 {
+			filterLenth := 100
+			if lenth <= filterLenth {
 				log.Info("获取triangulars数量", "lenth", lenth)
 				bc.ethAPI.PairCallBatch(triangulars)
 			} else {
-				log.Info("过滤获取triangulars数量", "lenth", 3000)
-				bc.ethAPI.PairCallBatch(selectRandomElements(triangulars, 3000))
+				log.Info("过滤获取triangulars数量", "lenth", filterLenth)
+				bc.ethAPI.PairCallBatch(selectRandomElements(triangulars, filterLenth))
 				if err != nil {
 					log.Error("triangulars执行eth_call失败", "err", err)
 				}

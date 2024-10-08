@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/pair/pairtypes"
 	"math/big"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1847,7 +1848,7 @@ func GetEthCallData() ([]CallBatchArgs, error) {
 // 	wg.Wait()
 // 	close(results)
 // 	selectSince := time.Since(start)
-// 	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+//	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince, "所在的区块号", s.BlockNumber())
 //
 // 	// 读取任务结果通道数据进行处理
 // 	resultMap := make(map[string]interface{}, len(datas))
@@ -1907,15 +1908,15 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 	log.Info("开始执行CallBatch")
 	var triangulars []*pairtypes.ITriangularArbitrageTriangular
 	triangular := &pairtypes.ITriangularArbitrageTriangular{
-		Token0:  common.HexToAddress("0x0bc89aa98Ad94E6798Ec822d0814d934cCD0c0cE"),
-		Router0: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
-		Pair0:   common.HexToAddress("0x51C5251BF281C6d0eF8ced7a1741FdB68D130ac2"),
-		Token1:  common.HexToAddress("0x55d398326f99059fF775485246999027B3197955"),
-		Router1: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
-		Pair1:   common.HexToAddress("0x7EFaEf62fDdCCa950418312c6C91Aef321375A00"),
+		Token0:  common.HexToAddress("0xeBBAefF6217d22E7744394061D874015709b8141"),
+		Router0: common.HexToAddress("0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"),
+		Pair0:   common.HexToAddress("0x170a4d2A29b30c6551f6a4C0CB527e7A9Cb7D526"),
+		Token1:  common.HexToAddress("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"),
+		Router1: common.HexToAddress("0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7"),
+		Pair1:   common.HexToAddress("0xCB99FE720124129520f7a09Ca3CBEF78D58Ed934"),
 		Token2:  common.HexToAddress("0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"),
 		Router2: common.HexToAddress("0x10ED43C718714eb63d5aA57B78B54704E256024E"),
-		Pair2:   common.HexToAddress("0xEE90C67C9dD5dE862F4eabFDd53007a2D95Df5c6"),
+		Pair2:   common.HexToAddress("0xc1fE0336456a8D4550ab0E1e528a684Bcf7bD3F8"),
 	}
 	triangulars = append(triangulars, triangular)
 
@@ -1935,9 +1936,10 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 	wg.Wait()
 	close(results)
 	selectSince := time.Since(start)
-	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince, "所在的区块号", s.BlockNumber())
 
 	// 读取任务结果通道数据进行处理
+	rois := make([]ROI, 0, 5000)
 	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
@@ -1953,6 +1955,46 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		}
 		i += 1
 	}
+
+	if len(rois) > 0 {
+		// 按 Profit 字段对rois进行降序排序
+		log.Info("排序前的rois", "rois", rois)
+		sort.Slice(rois, func(i, j int) bool {
+			return rois[i].Profit.Cmp(&rois[j].Profit) > 0
+		})
+		log.Info("降序排序rois成功", "rois", rois)
+
+		// 将排序后的rois去重过滤，保证每个pair只能出现一次，重复时将Profit较小的ROI都删除，只保留Profit最大的ROI
+		// 去重，保证 Pair0, Pair1, Pair2 中的值只出现一次
+		uniquePairs := make(map[common.Address]bool)
+		var filteredROIs []ROI
+		for _, roi := range rois {
+			if uniquePairs[roi.TriangularEntity.Pair0] || uniquePairs[roi.TriangularEntity.Pair1] || uniquePairs[roi.TriangularEntity.Pair2] {
+				// 如果任何一个 pair 已经出现过，跳过该结构体（删除）
+				continue
+			}
+
+			// 如果不存在，则将该结构体加入结果集，并标记 pairs 为已出现
+			filteredROIs = append(filteredROIs, roi)
+			uniquePairs[roi.TriangularEntity.Pair0] = true
+			uniquePairs[roi.TriangularEntity.Pair1] = true
+			uniquePairs[roi.TriangularEntity.Pair2] = true
+		}
+		log.Info("排序去重获rois成功", "filteredROIs", filteredROIs)
+
+		// 计算预估总gas
+		var gasTotal hexutil.Uint64
+		for _, filteredROI := range filteredROIs {
+			bytes := hexutil.Bytes(filteredROI.CallData)
+			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
+			if err != nil {
+				gasTotal = gasTotal + gas
+			}
+		}
+		log.Info("计算预估总gas成功", "gasTotal", gasTotal)
+	}
+
 	totalSince := time.Since(start)
 	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
 
@@ -1992,9 +2034,10 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 	wg.Wait()
 	close(results)
 	selectSince := time.Since(start)
-	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince)
+	log.Info("所有eth_call查询任务执行完成花费时长", "runtime", selectSince, "所在的区块号", s.BlockNumber())
 
 	// 读取任务结果通道数据进行处理
+	rois := make([]ROI, 0, 5000)
 	resultMap := make(map[string]interface{}, len(triangulars))
 	i := 1
 	// 处理结果
@@ -2011,23 +2054,49 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		}
 		i += 1
 	}
+
+	if len(rois) > 0 {
+		// 按 Profit 字段对rois进行降序排序
+		log.Info("排序前的rois", "rois", rois)
+		sort.Slice(rois, func(i, j int) bool {
+			return rois[i].Profit.Cmp(&rois[j].Profit) > 0
+		})
+		log.Info("降序排序rois成功", "rois", rois)
+
+		// 将排序后的rois去重过滤，保证每个pair只能出现一次，重复时将Profit较小的ROI都删除，只保留Profit最大的ROI
+		// 去重，保证 Pair0, Pair1, Pair2 中的值只出现一次
+		uniquePairs := make(map[common.Address]bool)
+		var filteredROIs []ROI
+		for _, roi := range rois {
+			if uniquePairs[roi.TriangularEntity.Pair0] || uniquePairs[roi.TriangularEntity.Pair1] || uniquePairs[roi.TriangularEntity.Pair2] {
+				// 如果任何一个 pair 已经出现过，跳过该结构体（删除）
+				continue
+			}
+
+			// 如果不存在，则将该结构体加入结果集，并标记 pairs 为已出现
+			filteredROIs = append(filteredROIs, roi)
+			uniquePairs[roi.TriangularEntity.Pair0] = true
+			uniquePairs[roi.TriangularEntity.Pair1] = true
+			uniquePairs[roi.TriangularEntity.Pair2] = true
+		}
+		log.Info("排序去重获rois成功", "filteredROIs", filteredROIs)
+
+		// 计算预估总gas
+		var gasTotal hexutil.Uint64
+		for _, filteredROI := range filteredROIs {
+			bytes := hexutil.Bytes(filteredROI.CallData)
+			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
+			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
+			if err != nil {
+				gasTotal = gasTotal + gas
+			}
+		}
+		log.Info("计算预估总gas成功", "gasTotal", gasTotal)
+	}
+
 	totalSince := time.Since(start)
-	r := Results{GetDatasSince: 0, SelectSince: selectSince, TotalSince: totalSince, ResultMap: resultMap}
+	log.Info("处理结果完成", "共耗时", totalSince)
 
-	// 创建文件
-	file, err := os.Create("/bc/bsc/build/bin/results.json")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 map 编码为 JSON
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ") // 设置缩进格式
-	if err := encoder.Encode(r); err != nil {
-		return err
-	}
-	log.Info("结果输出到文件完成，结束")
 	return nil
 }
 

@@ -19,7 +19,6 @@ package state
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/pair"
 	"io"
 	"sync"
 	"time"
@@ -219,20 +218,21 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		return value
 	}
 
-	storageCacheMap := pair.GetStorageCacheMap()
-	hashedKey := crypto.Keccak256Hash(s.addrHash[:], key[:]).Hex()
-	if s.db.Flag == 1 {
-		if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
-			storage := storageCache.(common.Hash)
-			s.setOriginStorage(key, storage)
-			return storage
-		}
+	// storageCacheMap := pair.GetStorageCacheMap()
+	// hashedKey := crypto.Keccak256Hash(s.addrHash[:], key[:]).Hex()
+	// if s.db.Flag == 1 {
+	// 	if storageCache, exists := storageCacheMap.Get(hashedKey); exists {
+	// 		storage := storageCache.(common.Hash)
+	// 		s.setOriginStorage(key, storage)
+	// 		return storage
+	// 	}
+	//
+	// 	// if storage, ok := storCacheMap[hashedKey]; ok {
+	// 	// 	s.setOriginStorage(key, storage)
+	// 	// 	return storage
+	// 	// }
+	// }
 
-		// if storage, ok := storCacheMap[hashedKey]; ok {
-		// 	s.setOriginStorage(key, storage)
-		// 	return storage
-		// }
-	}
 	// If the object was destructed in *this* block (and potentially resurrected),
 	// the storage has been cleared out, and we should *not* consult the previous
 	// database about any storage values. The only possible alternatives are:
@@ -281,10 +281,10 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		value.SetBytes(val)
 	}
 	s.setOriginStorage(key, value)
-	if s.db.Flag == 1 {
-		storageCacheMap.Set(hashedKey, value)
-		// storAddTmpMap.Set(hashedKey, value)
-	}
+	// if s.db.Flag == 1 {
+	// 	storageCacheMap.Set(hashedKey, value)
+	// 	// storAddTmpMap.Set(hashedKey, value)
+	// }
 	return value
 }
 
