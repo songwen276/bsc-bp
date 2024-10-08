@@ -1989,8 +1989,9 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
 			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
 			if err != nil {
-				gasTotal = gasTotal + gas
+				log.Error("存在roi的预估gas计算异常", "err", err)
 			}
+			gasTotal = gasTotal + gas
 		}
 		log.Info("计算预估总gas成功", "gasTotal", gasTotal)
 	}
@@ -2088,8 +2089,9 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
 			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
 			if err != nil {
-				gasTotal = gasTotal + gas
+				log.Error("存在roi的预估gas计算异常", "err", err)
 			}
+			gasTotal = gasTotal + gas
 		}
 		log.Info("计算预估总gas成功", "gasTotal", gasTotal)
 	}
