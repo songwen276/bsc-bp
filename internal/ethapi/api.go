@@ -1947,6 +1947,7 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
 		case *ROI:
+			rois = append(rois, *v)
 			resultMap[itoa] = *v
 		case error:
 			resultMap[itoa] = v.Error()
@@ -1985,7 +1986,8 @@ func (s *BlockChainAPI) CallBatch() (string, error) {
 		// 计算预估总gas
 		var gasTotal hexutil.Uint64
 		for _, filteredROI := range filteredROIs {
-			bytes := hexutil.Bytes(filteredROI.CallData)
+			decodeString, _ := hex.DecodeString(filteredROI.CallData)
+			bytes := hexutil.Bytes(decodeString)
 			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
 			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
 			if err != nil {
@@ -2046,8 +2048,7 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		itoa := strconv.Itoa(i)
 		switch v := result.(type) {
 		case *ROI:
-			log.Info("获取生成ROI成功", "ROI", *v)
-			resultMap[itoa] = *v
+			rois = append(rois, *v)
 		case error:
 			resultMap[itoa] = v.Error()
 		default:
@@ -2085,7 +2086,8 @@ func (s *BlockChainAPI) PairCallBatch(triangulars []*pairtypes.ITriangularArbitr
 		// 计算预估总gas
 		var gasTotal hexutil.Uint64
 		for _, filteredROI := range filteredROIs {
-			bytes := hexutil.Bytes(filteredROI.CallData)
+			decodeString, _ := hex.DecodeString(filteredROI.CallData)
+			bytes := hexutil.Bytes(decodeString)
 			args := TransactionArgs{From: &pair.From, To: &pair.To, Data: &bytes}
 			gas, err := s.EstimateGas(context.Background(), args, &pair.LatestBlockNumber, nil)
 			if err != nil {
