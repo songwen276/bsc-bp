@@ -28,6 +28,7 @@ import (
 	"math/rand"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -2373,40 +2374,37 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 		// log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes, "pairMap", pairAddrMap)
 		// log.Info("pair统计信息，", "logBlockNum", block.Number().Uint64(), "pairAddrNum", len(pairAddrMap), "addrOccurTimes", pairOccurTimes)
-		// 根据pair获取triangle
-		// var triangles []pairtypes.Triangle
-		var triangulars []*pairtypes.ITriangularArbitrageTriangular
+		// 根据pair获取triangle，一个pair对应一组triangleId，多个pair又可能对应同一个triangleId，所以循环每组triangleId去重
+		var triangles []pairtypes.Triangle
+		filterMap := make(map[string]bool)
 		for _, triangleIdSet := range pairAddrMap {
 			for _, triangleId := range triangleIdSet.GetData().Keys() {
-				if triangle, exists := pairCache.GetTriangle(triangleId); exists {
-					triangular := &pairtypes.ITriangularArbitrageTriangular{
-						Token0:  common.HexToAddress(triangle.Token0),
-						Router0: common.HexToAddress(triangle.Router0),
-						Pair0:   common.HexToAddress(triangle.Pair0),
-						Token1:  common.HexToAddress(triangle.Token1),
-						Router1: common.HexToAddress(triangle.Router1),
-						Pair1:   common.HexToAddress(triangle.Pair1),
-						Token2:  common.HexToAddress(triangle.Token2),
-						Router2: common.HexToAddress(triangle.Router2),
-						Pair2:   common.HexToAddress(triangle.Pair2),
-					}
+				if filterMap[triangleId] {
+					continue
+				}
 
-					// triangles = append(triangles, triangle)
-					triangulars = append(triangulars, triangular)
+				if triangle, exists := pairCache.GetTriangle(triangleId); exists {
+					triangles = append(triangles, triangle)
+					filterMap[triangleId] = true
+					if triangleId != strconv.FormatInt(triangle.ID, 10) {
+						log.Info("triangleId和triangle.ID比较不相同", "triangleId", triangleId, "triangle.ID", triangle.ID)
+					}
 				}
 			}
 		}
-		lenth := len(triangulars)
+		lenth := len(triangles)
+		lenthfilter := len(filterMap)
+		log.Info("去重获取triangles", "triangles个数", lenth, "去重获取triangleId个数", lenthfilter)
 		if lenth > 0 {
 			filterLenth := 100
 			if lenth <= filterLenth {
-				log.Info("获取triangulars数量", "lenth", lenth)
-				bc.ethAPI.PairCallBatch(triangulars)
+				log.Info("获取triangle数量", "lenth", lenth)
+				bc.ethAPI.PairCallBatch(triangles)
 			} else {
-				log.Info("过滤获取triangulars数量", "lenth", filterLenth)
-				bc.ethAPI.PairCallBatch(selectRandomElements(triangulars, filterLenth))
+				log.Info("过滤获取triangle数量", "lenth", filterLenth)
+				bc.ethAPI.PairCallBatch(selectRandomElements(triangles, filterLenth))
 				if err != nil {
-					log.Error("triangulars执行eth_call失败", "err", err)
+					log.Error("triangles执行eth_call失败", "err", err)
 				}
 			}
 		}
@@ -2466,9 +2464,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	return it.index, err
 }
 
-func selectRandomElements(slice []*pairtypes.ITriangularArbitrageTriangular, count int) []*pairtypes.ITriangularArbitrageTriangular {
+func selectRandomElements(slice []pairtypes.Triangle, count int) []pairtypes.Triangle {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	selected := make([]*pairtypes.ITriangularArbitrageTriangular, count)
+	selected := make([]pairtypes.Triangle, count)
 	for i := 0; i < count; i++ {
 		selected[i] = slice[r.Intn(len(slice))]
 	}
